@@ -1,0 +1,264 @@
+/* =========================================================
+   GOLDEN GRAINS — animated landing page
+   Same visual language as the animated login page
+   (css/auth-animated.css): drifting orbs, rising golden
+   grains, shining title, pulsing logo rings, shine-sweep
+   buttons. Adds a short welcome intro and scroll reveals.
+   ========================================================= */
+
+:root { --lp-base: 0s; }              /* delay before the hero starts animating */
+html.lp-intro { --lp-base: 2.3s; }    /* wait for the welcome intro to lift */
+
+/* ---------- Scroll progress bar ---------- */
+.lp-progress {
+  position: fixed; top: 0; left: 0; width: 100%; height: 3px; z-index: 120;
+  background: linear-gradient(90deg, #B9831A, #FFE9A0, #3F9B2F);
+  transform-origin: 0 50%; transform: scaleX(var(--lp-p, 0));
+  pointer-events: none;
+}
+
+/* =========================================================
+   WELCOME INTRO (plays once per browser session)
+   Pure CSS timeline, so it always lifts away by itself.
+   ========================================================= */
+.lp-splash { display: none; }
+html.lp-intro .lp-splash {
+  display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 200; overflow: hidden; cursor: pointer;
+  background: linear-gradient(135deg, #04200F, #0B4A2B 55%, #062E1A);
+  animation: lp-splash-out .85s 2.2s cubic-bezier(.7, 0, .2, 1) forwards;
+}
+html.lp-intro .lp-splash.lp-done { display: none; }
+@keyframes lp-splash-out {
+  0%   { clip-path: inset(0 0 0 0); visibility: visible; }
+  99%  { visibility: visible; }
+  100% { clip-path: inset(0 0 100% 0); visibility: hidden; }
+}
+.lp-splash-orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .55; pointer-events: none; }
+.lp-splash-orb.a { width: 380px; height: 380px; background: rgba(231,168,27,.35); top: -110px; left: -90px; animation: lp-drift1 12s ease-in-out infinite; }
+.lp-splash-orb.b { width: 340px; height: 340px; background: rgba(63,155,47,.38); bottom: -120px; right: -70px; animation: lp-drift2 14s ease-in-out infinite; }
+
+.lp-splash-inner { position: relative; text-align: center; padding: 20px; color: #fff; }
+.lp-splash-logo {
+  --size: clamp(120px, 20vw, 168px);
+  position: relative; width: var(--size); height: var(--size); margin: 0 auto 22px;
+  display: flex; align-items: center; justify-content: center;
+  animation: lp-pop .9s .1s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+.lp-splash-logo::before {
+  content: ''; position: absolute; inset: -20%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(246,192,74,.45), transparent 65%);
+  animation: lp-pulse 3s ease-in-out infinite;
+}
+.lp-splash-logo img { width: 76%; height: auto; position: relative; z-index: 2; filter: drop-shadow(0 8px 18px rgba(0,0,0,.5)); }
+.lp-splash-logo .r { position: absolute; inset: 0; border-radius: 50%; }
+.lp-splash-logo .r1 { border: 3px dashed #E7A81B; animation: lp-spin 14s linear infinite; }
+.lp-splash-logo .r2 { inset: 9px; border: 3px solid transparent; border-top-color: #FFE9A0; border-bottom-color: #FFE9A0; animation: lp-spin 6s linear infinite reverse; }
+
+.lp-splash-small {
+  margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 6px; text-transform: uppercase;
+  color: #CFE3D4; animation: lp-rise-in .7s .55s ease both;
+}
+.lp-splash-name {
+  margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 900; letter-spacing: 3px; line-height: 1.05;
+  font-size: clamp(30px, 6.4vw, 58px);
+  background: linear-gradient(100deg, #B9831A 0%, #FFE9A0 25%, #F2C14E 50%, #FFE9A0 75%, #B9831A 100%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: #F2C14E;
+  animation: lp-rise-in .8s .75s ease both, lp-shine 4s linear infinite;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.45));
+}
+.lp-splash-line {
+  display: block; height: 2px; width: min(260px, 60vw); margin: 16px auto 14px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #F6C04A, transparent);
+  transform-origin: center; animation: lp-line-grow .9s 1.15s cubic-bezier(.2,.8,.2,1) both;
+}
+.lp-splash-tag {
+  margin: 0; font-family: "Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive; font-style: italic;
+  font-size: clamp(16px, 2.6vw, 22px); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.4);
+  animation: lp-rise-in .8s 1.35s ease both;
+}
+@keyframes lp-line-grow { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
+
+/* =========================================================
+   SHARED KEYFRAMES
+   ========================================================= */
+@keyframes lp-spin { to { transform: rotate(360deg); } }
+@keyframes lp-pulse { 0%,100% { transform: scale(.92); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes lp-pulse-ring { 0%,100% { transform: scale(1); opacity: .8; } 50% { transform: scale(1.06); opacity: .2; } }
+@keyframes lp-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes lp-pop { from { opacity: 0; transform: scale(.5) rotate(-12deg); } to { opacity: 1; transform: none; } }
+@keyframes lp-rise-in { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes lp-shine { to { background-position: 200% 0; } }
+@keyframes lp-drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,50px) scale(1.15); } }
+@keyframes lp-drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-70px,-40px) scale(1.2); } }
+@keyframes lp-bg-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes lp-sweep { 0%,55% { left: -80%; } 100% { left: 140%; } }
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+.landing-nav { animation: lp-nav-in .7s var(--lp-base) cubic-bezier(.2,.8,.2,1) both; }
+@keyframes lp-nav-in { from { transform: translateY(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
+.landing-nav::after {   /* a soft glint travelling along the gold border */
+  content: ''; position: absolute; left: 0; bottom: -2px; width: 30%; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #FFE9A0, transparent);
+  animation: lp-glint 6s linear infinite;
+}
+@keyframes lp-glint { from { transform: translateX(-100%); } to { transform: translateX(333%); } }
+.landing-nav .brand img { transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+.landing-nav .brand:hover img { transform: rotate(-8deg) scale(1.08); }
+
+/* Buttons: lift + shine sweep (same as the login button) */
+.landing-nav .btn-primary,
+.hero .cta .btn-primary { position: relative; overflow: hidden; transition: transform .18s, box-shadow .18s; }
+.landing-nav .btn-primary::after,
+.hero .cta .btn-primary::after {
+  content: ''; position: absolute; top: 0; left: -80%; width: 50%; height: 100%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.6), transparent);
+  transform: skewX(-20deg); animation: lp-sweep 3.2s ease-in-out infinite;
+}
+.landing-nav .btn-primary:hover,
+.hero .cta .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(231,168,27,.5); }
+.landing-nav .btn-primary:active,
+.hero .cta .btn-primary:active { transform: translateY(0) scale(.99); }
+.hero .cta .btn-outline { transition: transform .18s, background .18s, border-color .18s; }
+.hero .cta .btn-outline:hover { transform: translateY(-2px); }
+
+/* =========================================================
+   HERO
+   ========================================================= */
+.hero {
+  background: linear-gradient(135deg, #04200F, #0B4A2B, #062E1A, #0E5A33);
+  background-size: 300% 300%; animation: lp-bg-shift 18s ease infinite;
+  isolation: isolate;
+}
+.hero > .container { position: relative; z-index: 1; }
+
+.lp-orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .55; z-index: 0; pointer-events: none; }
+.lp-orb.o1 { width: 420px; height: 420px; background: rgba(231,168,27,.35); top: -120px; left: -100px; animation: lp-drift1 16s ease-in-out infinite; }
+.lp-orb.o2 { width: 380px; height: 380px; background: rgba(63,155,47,.38); bottom: -140px; right: -80px; animation: lp-drift2 20s ease-in-out infinite; }
+.lp-orb.o3 { width: 260px; height: 260px; background: rgba(246,192,74,.22); top: 40%; left: 42%; animation: lp-drift1 24s ease-in-out infinite reverse; }
+
+/* Golden grains floating upwards */
+.lp-grains { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.lp-grain {
+  position: absolute; bottom: -40px; left: var(--x); width: var(--s); height: calc(var(--s) * 1.9);
+  background: linear-gradient(160deg, #FFE9A0, #E7A81B 60%, #B9831A);
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  opacity: 0; filter: blur(var(--b, 0px));
+  animation: lp-rise var(--d) linear var(--delay) infinite, lp-sway calc(var(--d) / 3) ease-in-out var(--delay) infinite alternate;
+}
+@keyframes lp-rise {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: .75; } 90% { opacity: .6; }
+  100% { transform: translateY(calc(-1 * var(--hh, 900px))) rotate(360deg); opacity: 0; }
+}
+@keyframes lp-sway { from { margin-left: -24px; } to { margin-left: 24px; } }
+
+/* Welcome line above the title */
+.hero .lp-welcome {
+  display: flex; align-items: center; justify-content: center; gap: 14px; max-width: none;
+  margin: 0 auto 8px; font-size: 12.5px; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; color: #CFE3D4;
+  animation: lp-rise-in .8s var(--lp-base) ease both;
+}
+.hero .lp-welcome::before,
+.hero .lp-welcome::after {
+  content: ''; height: 1px; width: clamp(28px, 8vw, 70px);
+  background: linear-gradient(90deg, transparent, #F6C04A);
+  transform-origin: right center; animation: lp-line-grow 1s calc(var(--lp-base) + .3s) cubic-bezier(.2,.8,.2,1) both;
+}
+.hero .lp-welcome::after { background: linear-gradient(270deg, transparent, #F6C04A); transform-origin: left center; }
+
+/* Title: shining gold + rise in */
+.hero .hero-title {
+  background: linear-gradient(100deg, #B9831A 0%, #FFE9A0 25%, #F2C14E 50%, #FFE9A0 75%, #B9831A 100%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lp-rise-in .9s calc(var(--lp-base) + .15s) ease both, lp-shine 6s linear infinite;
+}
+.hero .hero-tagline { animation: lp-rise-in .8s calc(var(--lp-base) + .35s) ease both; }
+
+/* Logo: pop in, glow, float, extra pulsing ring */
+.logo-ring { animation: lp-pop .9s calc(var(--lp-base) + .5s) cubic-bezier(.2,.9,.3,1.2) both; }
+.logo-ring::before {
+  content: ''; position: absolute; inset: -18%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(246,192,74,.45), transparent 65%);
+  animation: lp-pulse 3.4s ease-in-out infinite;
+}
+.logo-ring .ring-logo { filter: drop-shadow(0 8px 18px rgba(0,0,0,.5)); animation: lp-float 5s ease-in-out infinite; }
+.logo-ring .ring-pulse { inset: -12px; border: 1px solid rgba(246,192,74,.35); animation: lp-pulse-ring 3.4s ease-in-out infinite; }
+
+.hero .lp-line { animation: lp-rise-in .8s calc(var(--lp-base) + .8s) ease both; }
+.hero .lp-desc { animation: lp-rise-in .8s calc(var(--lp-base) + .95s) ease both; }
+.hero .cta > * { animation: lp-rise-in .8s calc(var(--lp-base) + 1.1s) ease both; }
+.hero .cta > *:nth-child(2) { animation-delay: calc(var(--lp-base) + 1.2s); }
+
+/* =========================================================
+   FEATURES (scroll reveal, spotlight, animated edge)
+   ========================================================= */
+.lp-js .lp-reveal { opacity: 0; }
+.lp-js .lp-reveal.in {
+  opacity: 1;
+  animation: lp-reveal-up .8s var(--lp-d, 0s) cubic-bezier(.2,.8,.2,1) backwards;
+}
+@keyframes lp-reveal-up { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+.feature-grid .feature:nth-child(1) { --lp-d: 0s; }
+.feature-grid .feature:nth-child(2) { --lp-d: .08s; }
+.feature-grid .feature:nth-child(3) { --lp-d: .16s; }
+.feature-grid .feature:nth-child(4) { --lp-d: .24s; }
+.feature-grid .feature:nth-child(5) { --lp-d: .32s; }
+.feature-grid .feature:nth-child(6) { --lp-d: .40s; }
+
+.section-head .eyebrow { position: relative; display: inline-block; }
+.section-head .eyebrow::after {
+  content: ''; display: block; height: 2px; margin: 6px auto 0; width: 36px; border-radius: 2px;
+  background: linear-gradient(90deg, #F6C04A, #3F9B2F); transition: width .9s .3s cubic-bezier(.2,.8,.2,1);
+}
+.lp-js .section-head.lp-reveal .eyebrow::after { width: 0; }
+.lp-js .section-head.lp-reveal.in .eyebrow::after { width: 36px; }
+
+.feature > * { position: relative; z-index: 1; }
+.feature::before {   /* soft spotlight that follows the pointer */
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .25s;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0%), rgba(231,168,27,.16), transparent 70%);
+}
+.feature:hover::before { opacity: 1; }
+.feature::after {    /* moving gold-to-green edge */
+  background: linear-gradient(90deg, #F6C04A, #3F9B2F, #F6C04A);
+  background-size: 200% 100%; animation: lp-edge 6s linear infinite;
+}
+@keyframes lp-edge { to { background-position: 200% 0; } }
+
+.feature .fi { position: relative; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+.feature:hover .fi { transform: rotate(-6deg) scale(1.1); }
+.feature .fi::after {   /* gentle ping ring around each icon */
+  content: ''; position: absolute; inset: 0; border-radius: 8px; border: 1px solid rgba(246,192,74,.7);
+  animation: lp-ping 3.2s ease-out infinite;
+}
+.feature:nth-child(2) .fi::after { animation-delay: .5s; } .feature:nth-child(3) .fi::after { animation-delay: 1s; }
+.feature:nth-child(4) .fi::after { animation-delay: 1.5s; } .feature:nth-child(5) .fi::after { animation-delay: 2s; }
+.feature:nth-child(6) .fi::after { animation-delay: 2.5s; }
+@keyframes lp-ping { 0% { transform: scale(1); opacity: .8; } 70%,100% { transform: scale(1.55); opacity: 0; } }
+
+/* =========================================================
+   Phones
+   ========================================================= */
+@media (max-width: 600px) {
+  .hero .lp-welcome { font-size: 10.5px; letter-spacing: 3px; gap: 10px; }
+  .lp-orb.o1 { width: 280px; height: 280px; }
+  .lp-orb.o2 { width: 260px; height: 260px; }
+  .lp-orb.o3 { display: none; }
+}
+
+/* =========================================================
+   Respect "reduce motion": no intro, nothing moving
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  html.lp-intro .lp-splash { display: none; }
+  :root, html.lp-intro { --lp-base: 0s; }
+  .landing-nav, .landing-nav::after, .hero, .hero *, .hero *::before, .hero *::after,
+  .feature, .feature::after, .feature .fi::after, .landing-nav .btn-primary::after { animation: none !important; transition: none !important; }
+  .lp-js .lp-reveal { opacity: 1; }
+  .lp-grain, .lp-progress { display: none; }
+}

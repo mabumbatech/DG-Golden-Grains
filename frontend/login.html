@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log In — GOLDEN GRAINS</title>
+<script src="js/manifest-init.js"></script>
+<link rel="icon" href="assets/logo1.png">
+<meta name="theme-color" content="#062E1A">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/auth-animated.css">
+
+
+</head>
+<body>
+
+<div class="lg-page">
+  <span class="lg-orb o1"></span><span class="lg-orb o2"></span><span class="lg-orb o3"></span>
+  <div class="lg-grains" id="grains" aria-hidden="true"></div>
+
+  <main class="lg-shell">
+
+    <!-- Brand showcase -->
+    <section class="lg-brand">
+      <div class="lg-logo">
+        <span class="lg-ring r3"></span>
+        <span class="lg-ring r1"></span>
+        <span class="lg-ring r2"></span>
+        <img src="assets/hero-logo.png" alt="GOLDEN GRAINS">
+      </div>
+      <h1 class="lg-title">DG GOLDEN GRAINS</h1>
+      <p class="lg-tagline">Quality in Every Grain</p>
+      <div class="lg-chips">
+        <span class="lg-chip">Stock</span>
+        <span class="lg-chip">Sales</span>
+        <span class="lg-chip">Debts</span>
+        <span class="lg-chip">Expenses</span>
+        <span class="lg-chip">Reports</span>
+      </div>
+    </section>
+
+    <!-- Login card -->
+    <section class="lg-card" id="card">
+      <h2>Welcome back <span class="lg-wave">👋</span></h2>
+      <p class="lg-sub">Log in to your business dashboard</p>
+
+      <div class="lg-error" id="err" role="alert"></div>
+
+      <form id="loginForm" autocomplete="on">
+        <div class="lg-field">
+          <label for="username">Username</label>
+          <div class="lg-input-wrap">
+            <input type="text" id="username" required autocomplete="username" placeholder="Enter your username" autocapitalize="none" spellcheck="false">
+            <svg class="lg-ic" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </div>
+        </div>
+
+        <div class="lg-field">
+          <label for="password">Password</label>
+          <div class="lg-input-wrap">
+            <input type="password" id="password" required autocomplete="current-password" placeholder="Enter your password">
+            <svg class="lg-ic" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            <button type="button" class="lg-eye" id="eyeBtn" aria-label="Show password">
+              <svg class="show" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <svg class="off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="lg-btn" id="submitBtn">
+          <span class="lg-btn-text">Log In</span>
+          <svg class="arrow" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+      </form>
+
+      <div class="lg-links">
+        <a href="forgot-password.html">Forgot password?</a>
+        <a href="index.html">&larr; Back to homepage</a>
+      </div>
+      <p class="lg-secure">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        Secure staff access
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  const form = document.getElementById('loginForm');
+  const errBox = document.getElementById('err');
+  const submitBtn = document.getElementById('submitBtn');
+  const card = document.getElementById('card');
+  const pwd = document.getElementById('password');
+  const eyeBtn = document.getElementById('eyeBtn');
+
+  // Floating golden grains in the background
+  (function makeGrains() {
+    const box = document.getElementById('grains');
+    const count = window.innerWidth < 600 ? 14 : 26;
+    for (let i = 0; i < count; i++) {
+      const g = document.createElement('span');
+      g.className = 'lg-grain';
+      g.style.setProperty('--x', (Math.random() * 100).toFixed(1) + '%');
+      g.style.setProperty('--s', (5 + Math.random() * 9).toFixed(1) + 'px');
+      g.style.setProperty('--d', (9 + Math.random() * 12).toFixed(1) + 's');
+      g.style.setProperty('--delay', (-Math.random() * 20).toFixed(1) + 's');
+      g.style.setProperty('--b', (Math.random() < 0.3 ? 1.5 : 0) + 'px');
+      box.appendChild(g);
+    }
+  })();
+
+  // Show / hide password
+  eyeBtn.addEventListener('click', () => {
+    const show = pwd.type === 'password';
+    pwd.type = show ? 'text' : 'password';
+    eyeBtn.classList.toggle('on', show);
+    eyeBtn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  });
+
+  // If already logged in, skip straight to dashboard
+  (async () => {
+    const res = await API._request(API.authBase + 'session_check.php', 'GET');
+    if (res.success) window.location.href = 'dashboard.html';
+  })();
+
+  function setLoading(on) {
+    submitBtn.disabled = on;
+    submitBtn.querySelector('.lg-btn-text').textContent = on ? 'Logging in...' : 'Log In';
+    const arrow = submitBtn.querySelector('.arrow');
+    let sp = submitBtn.querySelector('.lg-spinner');
+    if (on && !sp) {
+      sp = document.createElement('span');
+      sp.className = 'lg-spinner';
+      submitBtn.appendChild(sp);
+    }
+    if (!on && sp) sp.remove();
+    arrow.style.display = on ? 'none' : '';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.remove('show');
+    setLoading(true);
+
+    const res = await API.auth('login.php', {
+      username: document.getElementById('username').value.trim(),
+      password: pwd.value,
+    });
+
+    setLoading(false);
+
+    if (!res.success) {
+      errBox.textContent = res.message || 'Login failed.';
+      errBox.classList.add('show');
+      card.classList.remove('shake');
+      void card.offsetWidth; // restart the shake animation
+      card.classList.add('shake');
+      return;
+    }
+    // lets the dashboard play its welcome animation once
+    try { sessionStorage.setItem('ggWelcome', (res.data && res.data.full_name) || '1'); } catch (e) { /* ignore */ }
+    window.location.href = 'dashboard.html';
+  });
+</script>
+</body>
+</html>

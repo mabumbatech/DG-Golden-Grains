@@ -1,0 +1,555 @@
+let PRODUCTS_CACHE = [];
+let CURRENT_TYPES_PRODUCT = null;
+let TYPES_CACHE = [];
+let NEW_VARIANT_SEQ = 0;
+
+(async function init() {
+    await requireAuth();
+    document.getElementById('print-date-products').textContent = new Date().toLocaleString('en-GB');
+    await loadProducts();
+    loadTypeNameSuggestions();
+})();
+
+/**
+ * The Status field has exactly three real-world states:
+ *  - Disabled: switched off by an admin, no longer available.
+ *  - Low: still available, but stock has fallen below the reorder level.
+ *         This is calculated automatically - it's never set by hand.
+ *         For a parent product with types, "Low" means at least one of
+ *         its types is low, not the parent's own (unused) stock field.
+ *  - Active: available, and (for products) stock is healthy.
+ */
+function computeStatusTag(p) {
+    if (p.status === 'disabled') return '<span class="tag tag-gray">Disabled</span>';
+    if (Number(p.variant_count) > 0) {
+        if (Number(p.has_low_variant) > 0) return '<span class="tag tag-low">Low</span>';
+    } else if (Number(p.stock_quantity) <= Number(p.reorder_level)) {
+        return '<span class="tag tag-low">Low</span>';
+    }
+    return '<span class="tag tag-green">Active</span>';
+}
+
+async function loadProducts() {
+    const tbody = document.getElementById('productsBody');
+    const colCount = 10;
+    tbody.innerHTML = `<tr><td colspan="${colCount}" class="muted">Loading...</td></tr>`;
+
+    const params = {};
+    const q = document.getElementById('searchInput').value.trim();
+    if (q) params.q = q;
+
+    const res = await API.get('products.php', params);
+    if (!res.success) { tbody.innerHTML = `<tr><td colspan="${colCount}" class="muted">${res.message}</td></tr>`; return; }
+
+    PRODUCTS_CACHE = res.data;
+
+    let totalItems = 0,
+        totalValue = 0;
+    res.data.forEach(p => {
+        const hasVariants = Number(p.variant_count) > 0;
+        totalItems = roundQty(totalItems + (Number(p.stock_quantity) || 0));
+        totalValue += hasVariants ? (Number(p.variant_stock_value) || 0) : ((Number(p.stock_quantity) || 0) * (Number(p.buying_price) || 0));
+    });
+    document.getElementById('pr-total-products').textContent = res.data.length;
+    document.getElementById('pr-total-items').textContent = fmtQty(totalItems);
+    document.getElementById('pr-total-value').textContent = money(totalValue);
+
+    if (!res.data.length) {
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="muted">No products yet. Click "+ Add Item" to get started.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = res.data.map(p => {
+        const statusTag = computeStatusTag(p);
+        const minPrice = p.minimum_price ? money(p.minimum_price) : '—';
+        const actions = `<td class="admin-only no-print">
+        <button class="icon-action-btn edit-btn" title="Edit" onclick="editProduct(${p.id})"><svg class="ui-icon"><use href="assets/icons.svg#edit"></use></svg></button>
+        <button class="icon-action-btn delete-btn" title="Delete" onclick="deleteProduct(${p.id})"><svg class="ui-icon"><use href="assets/icons.svg#trash"></use></svg></button>
+      </td>`;
+
+        // A product can have several types (sizes) - e.g.
+        // "Rice" can have "Kyela 25kg", "Mbeya 5kg", each with its own price.
+        const hasVariants = Number(p.variant_count) > 0;
+        const sellingCell = hasVariants ?
+            (Number(p.min_selling) === Number(p.max_selling) ? money(p.min_selling) : `${money(p.min_selling)} – ${money(p.max_selling)}`) :
+            money(p.selling_price);
+        const minCell = hasVariants ?
+            (p.min_minimum == null && p.max_minimum == null ? '—' :
+                (Number(p.min_minimum) === Number(p.max_minimum) ? money(p.min_minimum) : `${money(p.min_minimum)} – ${money(p.max_minimum)}`)) :
+            minPrice;
+        // "Type" column: doubles as the quick/emergency entry point for
+        // managing this item's types - same modal as before, just relocated
+        // and relabelled on the list.
+        const typeCell = hasVariants ?
+            `<button type="button" class="btn btn-outline btn-sm" onclick="openTypesModal(${p.id})">${p.variant_count} type${Number(p.variant_count) === 1 ? '' : 's'} →</button>` :
+            `<button type="button" class="btn btn-outline btn-sm" onclick="openTypesModal(${p.id})">+ Add types</button>`;
+
+        const buyingCell = hasVariants ?
+            (Number(p.min_buying) === Number(p.max_buying) ? money(p.min_buying) : `${money(p.min_buying)} – ${money(p.max_buying)}`) :
+            money(p.buying_price);
+        const unitCell = hasVariants ? (p.variant_unit || '—') : p.unit;
+
+        return `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td>${p.category_name || '—'}</td>
+      <td class="no-print">${typeCell}</td>
+      <td class="admin-only">${buyingCell}</td>
+      <td>${minCell}</td>
+      <td>${sellingCell}</td>
+      <td>${unitCell}</td>
+      <td>${hasVariants || p.status === 'disabled' ? fmtQty(p.stock_quantity) : `<div class="stock-cell"><span>${fmtQty(p.stock_quantity)}</span>${stockBarHTML(p.stock_quantity, p.reorder_level)}</div>`}</td>
+      <td class="no-print">${statusTag}</td>
+      ${actions}
+    </tr>`;
+    }).join('');
+
+    animateStockBars(tbody);
+    applyRoleVisibility();
+}
+
+function openProductModal() {
+    document.getElementById('productForm').reset();
+    document.getElementById('p-id').value = '';
+    document.getElementById('productModalTitle').textContent = 'Add Product';
+    document.getElementById('statusField').style.display = 'none';
+    // p-unit no longer exists on the Products page (it's on each type now), so guard it.
+    const unitField = document.getElementById('p-unit');
+    if (unitField) unitField.value = 'kg';
+    resetNewVariantsList();
+    // Every product must have at least one type - show the
+    // builder with one row ready to fill in.
+    const variantsSection = document.getElementById('newVariantsSection');
+    if (variantsSection) variantsSection.style.display = 'block';
+    addNewVariantRow();
+    openModal('productModal');
+}
+
+function editProduct(id) {
+    const p = PRODUCTS_CACHE.find(x => x.id == id);
+    if (!p) return;
+    document.getElementById('productModalTitle').textContent = 'Edit Product';
+    document.getElementById('p-id').value = p.id;
+    document.getElementById('p-name').value = p.name;
+    const categoryField = document.getElementById('p-category');
+    if (categoryField) categoryField.value = p.category_name || '';
+    // Buying/selling/minimum/stock/reorder/unit are not in the form any more -
+    // a product's own copies are unused once it's saved with types, so guard every one of them.
+    const buyingField = document.getElementById('p-buying');
+    if (buyingField) buyingField.value = p.buying_price;
+    const sellingField = document.getElementById('p-selling');
+    if (sellingField) sellingField.value = p.selling_price;
+    const minField = document.getElementById('p-minimum');
+    if (minField) minField.value = p.minimum_price || '';
+    const stockField = document.getElementById('p-stock');
+    if (stockField) stockField.value = fmtQty(p.stock_quantity);
+    const reorderField = document.getElementById('p-reorder');
+    if (reorderField) reorderField.value = fmtQty(p.reorder_level);
+    const unitField = document.getElementById('p-unit');
+    if (unitField) unitField.value = p.unit;
+    document.getElementById('p-status').value = p.status;
+    document.getElementById('statusField').style.display = 'block';
+    // Editing an existing item: types are managed from the "Type"
+    // column on the list instead, so the inline builder stays out of the way.
+    resetNewVariantsList();
+    const variantsSection = document.getElementById('newVariantsSection');
+    if (variantsSection) variantsSection.style.display = 'none';
+    openModal('productModal');
+}
+
+document.getElementById('productForm').addEventListener('submit', async(e) => {
+    e.preventDefault();
+    const id = document.getElementById('p-id').value;
+
+    // Only a brand-new item can carry inline types from this form; for an
+    // existing item they're always added via the "Type" column.
+    let newVariants = [];
+    if (!id) {
+        try {
+            newVariants = collectNewVariants();
+        } catch (err) {
+            toast(err.message, 'error');
+            return;
+        }
+        // A product does not carry its own price/unit/stock - every product
+        // is required to have at least one type.
+        if (newVariants.length === 0) {
+            toast(`Add at least one type before saving - every product needs at least one.`, 'error');
+            return;
+        }
+    }
+
+    // p-buying/p-selling/p-minimum/p-stock/p-reorder/p-unit are not in the
+    // form - a product's price/unit/stock live on its type(s) instead.
+    const unitField = document.getElementById('p-unit');
+    const categoryField = document.getElementById('p-category');
+    const payload = {
+        name: document.getElementById('p-name').value.trim(),
+        category_name: categoryField ? categoryField.value.trim() : '',
+        buying_price: document.getElementById('p-buying') ? document.getElementById('p-buying').value : '',
+        selling_price: document.getElementById('p-selling') ? document.getElementById('p-selling').value : '',
+        minimum_price: document.getElementById('p-minimum') ? document.getElementById('p-minimum').value : '',
+        stock_quantity: document.getElementById('p-stock') ? document.getElementById('p-stock').value : '',
+        reorder_level: document.getElementById('p-reorder') ? document.getElementById('p-reorder').value : '',
+        unit: unitField ? (unitField.value.trim() || 'kg') : 'kg',
+    };
+
+    let res;
+    if (id) {
+        payload.id = id;
+        payload.status = document.getElementById('p-status').value;
+        res = await API.put('products.php', payload);
+    } else {
+        res = await API.post('products.php', payload);
+    }
+
+    if (!res.success) { toast(res.message, 'error'); return; }
+
+    if (!id && newVariants.length && res.data && res.data.id) {
+        const newProductId = res.data.id;
+        let added = 0;
+        const failures = [];
+        for (const v of newVariants) {
+            const vRes = await API.post('product_variants.php', { ...v, product_id: newProductId });
+            if (vRes.success) added++;
+            else failures.push(`${v.variant_name} (${vRes.message})`);
+        }
+        if (failures.length) {
+            toast(`${res.message} ${added} of ${newVariants.length} type(s) saved. Couldn't save: ${failures.join(', ')}`, added ? 'success' : 'error');
+        } else {
+            toast(`${res.message} ${added} type${added === 1 ? '' : 's'} added.`);
+        }
+        loadTypeNameSuggestions();
+    } else {
+        toast(res.message);
+    }
+
+    closeModal('productModal');
+    loadProducts();
+});
+
+async function deleteProduct(id) {
+    if (!confirm('Delete this item? This cannot be undone. Any types under it will be deleted too.')) return;
+    const res = await API.del('products.php', { id });
+    if (!res.success) { toast(res.message, 'error'); return; }
+    toast(res.message);
+    loadProducts();
+}
+
+function downloadProductsExcel() {
+    const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
+    const rows = PRODUCTS_CACHE.map(p => {
+        const hasVariants = Number(p.variant_count) > 0;
+        return [
+            p.name, p.category_name || '',
+            ...(isAdmin ? [hasVariants ? `${p.min_buying}–${p.max_buying}` : p.buying_price] : []),
+            hasVariants ? '' : (p.minimum_price || ''),
+            hasVariants ? `${p.min_selling}–${p.max_selling}` : p.selling_price,
+            hasVariants ? (p.variant_unit || '') : p.unit,
+            fmtQty(p.stock_quantity),
+            p.status === 'disabled' ?
+            'Disabled' :
+            (hasVariants ?
+                (Number(p.has_low_variant) > 0 ? 'Low' : 'Active') :
+                (Number(p.stock_quantity) <= Number(p.reorder_level) ? 'Low' : 'Active')),
+        ];
+    });
+    exportToExcel('GOLDEN_GRAINS_Products_' + new Date().toISOString().slice(0, 10) + '.csv', ['Name', 'Category', ...(isAdmin ? ['Purchasing Price'] : []), 'Minimum Selling Price', 'Selling Price', 'Unit', 'Stock', 'Status'], rows);
+}
+
+/**
+ * A quick, no-frills view of just names - nothing else - for times
+ * someone just needs to see what's offered, with a search box to
+ * filter down to a word or two, and (for admins) a way to add a brand
+ * new name right there without leaving this view.
+ */
+function openNamesOnlyModal() {
+    document.getElementById('namesOnlyModalTitle').textContent = 'Product Names';
+    document.getElementById('namesOnlySearch').value = '';
+    document.getElementById('quickNameInput').value = '';
+    renderNamesOnlyList();
+    openModal('namesOnlyModal');
+}
+
+const quickNameForm = document.getElementById('quickNameForm');
+if (quickNameForm) {
+    quickNameForm.addEventListener('submit', async(e) => {
+        e.preventDefault();
+        const input = document.getElementById('quickNameInput');
+        const name = input.value.trim();
+        if (!name) return;
+
+        const res = await API.post('products.php', { name });
+        if (!res.success) { toast(res.message, 'error'); return; }
+
+        toast(name + ' added to the Product list.');
+        input.value = '';
+
+        const listRes = await API.get('products.php');
+        if (listRes.success) PRODUCTS_CACHE = listRes.data;
+        renderNamesOnlyList();
+    });
+}
+
+function renderNamesOnlyList() {
+    const q = document.getElementById('namesOnlySearch').value.trim().toLowerCase();
+    const list = document.getElementById('namesOnlyList');
+
+    const filtered = PRODUCTS_CACHE.filter(p => p.name.toLowerCase().includes(q));
+
+    if (!filtered.length) {
+        list.innerHTML = `<p class="muted">No matching products found.</p>`;
+        return;
+    }
+
+    list.innerHTML = filtered
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(p => `<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px;">${p.name}</div>`)
+        .join('');
+}
+
+/* =========================================================
+   Inline Types / Variants builder - lives inside the Add Item
+   form so an item's types can be created (or picked from ones used
+   before, via the type-name suggestions) at the same time the item itself
+   is created. 
+   ========================================================= */
+async function loadTypeNameSuggestions() {
+    const datalist = document.getElementById('typeNameSuggestions');
+    if (!datalist) return;
+    const res = await API.get('product_variants.php', { all_names: 1 });
+    if (!res.success || !Array.isArray(res.data)) return;
+    datalist.innerHTML = res.data.map(name => `<option value="${name}"></option>`).join('');
+}
+
+function resetNewVariantsList() {
+    const list = document.getElementById('newVariantsList');
+    if (list) list.innerHTML = '';
+}
+
+function addNewVariantRow() {
+    const list = document.getElementById('newVariantsList');
+    if (!list) return;
+    const rowId = 'nv' + (++NEW_VARIANT_SEQ);
+    const priceRow = `<div class="field-row">
+        <div class="field">
+          <label>Purchasing Price (TZS)</label>
+          <input type="number" class="nv-buying" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label>Selling Price (TZS)</label>
+          <input type="number" class="nv-selling" min="0" step="0.01">
+        </div>
+      </div>`;
+    list.insertAdjacentHTML('beforeend', `
+    <div class="new-variant-row" data-row-id="${rowId}">
+      <div class="field-row nv-remove-row">
+        <div class="field">
+          <label>Type Name</label>
+          <input type="text" class="nv-name" list="typeNameSuggestions" placeholder="e.g. Kyela 25kg (type or pick one)">
+        </div>
+        <button type="button" class="icon-action-btn delete-btn" title="Remove this type" onclick="removeNewVariantRow('${rowId}')">
+          <svg class="ui-icon"><use href="assets/icons.svg#trash"></use></svg>
+        </button>
+      </div>
+      ${priceRow}
+      <div class="field-row">
+        <div class="field">
+          <label>Minimum Price (TZS) — optional</label>
+          <input type="number" class="nv-minimum" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label>Unit</label>
+          <input type="text" class="nv-unit" placeholder="kg, litre, bag..." value="kg">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Stock Quantity</label>
+          <input type="number" class="nv-stock" min="0" step="any" inputmode="decimal" value="0">
+        </div>
+        <div class="field">
+          <label>Reorder Alert Level</label>
+          <input type="number" class="nv-reorder" min="0" step="any" inputmode="decimal" value="5">
+        </div>
+      </div>
+    </div>`);
+}
+
+function removeNewVariantRow(rowId) {
+    const row = document.querySelector(`.new-variant-row[data-row-id="${rowId}"]`);
+    if (row) row.remove();
+}
+
+// Reads whichever type rows the admin actually filled in (a blank, untouched
+// row is ignored rather than rejected) and turns them into payloads ready
+// for product_variants.php. Throws with a friendly message if a named type
+// is missing the one thing product_variants.php requires beyond the name.
+function collectNewVariants() {
+    const rows = document.querySelectorAll('#newVariantsList .new-variant-row');
+    const variants = [];
+    for (const row of rows) {
+        const name = row.querySelector('.nv-name').value.trim();
+        if (!name) continue;
+        const selling = row.querySelector('.nv-selling').value;
+        if (selling === '') {
+            throw new Error(`"${name}" needs a Selling Price before it can be saved.`);
+        }
+        variants.push({
+            variant_name: name,
+            buying_price: row.querySelector('.nv-buying') ? row.querySelector('.nv-buying').value : '',
+            selling_price: selling,
+            minimum_price: row.querySelector('.nv-minimum').value,
+            unit: row.querySelector('.nv-unit').value.trim() || 'kg',
+            stock_quantity: row.querySelector('.nv-stock') ? row.querySelector('.nv-stock').value : '',
+            reorder_level: row.querySelector('.nv-reorder') ? row.querySelector('.nv-reorder').value : '',
+        });
+    }
+    return variants;
+}
+
+/* =========================================================
+   Types (variants) modal for a product.
+   ========================================================= */
+async function openTypesModal(productId) {
+    const p = PRODUCTS_CACHE.find(x => x.id == productId);
+    if (!p) return;
+    CURRENT_TYPES_PRODUCT = p;
+    document.getElementById('typesModalTitle').textContent = 'Types — ' + p.name;
+    document.getElementById('typesModalSubtitle').textContent =
+        '"' + p.name + '" is the group name. Each type below has its own price, unit, stock and reorder level, and is what gets sold and tracked individually.';
+    document.getElementById('v-product-id').value = p.id;
+    resetVariantForm();
+    await loadTypesList();
+    openModal('typesModal');
+}
+
+async function loadTypesList() {
+    const tbody = document.getElementById('typesBody');
+    const colCount = 9;
+    tbody.innerHTML = `<tr><td colspan="${colCount}" class="muted">Loading...</td></tr>`;
+    const res = await API.get('product_variants.php', { product_id: CURRENT_TYPES_PRODUCT.id });
+    if (!res.success) { tbody.innerHTML = `<tr><td colspan="${colCount}" class="muted">${res.message}</td></tr>`; return; }
+    TYPES_CACHE = res.data;
+    renderTypesList();
+}
+
+function renderTypesList() {
+    const tbody = document.getElementById('typesBody');
+    const colCount = 9;
+    const totalStockEl = document.getElementById('types-total-stock');
+    if (!TYPES_CACHE.length) {
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="muted">No types yet. Add the first one below.</td></tr>`;
+        if (totalStockEl) totalStockEl.textContent = '0';
+        return;
+    }
+    let totalStock = 0;
+    tbody.innerHTML = TYPES_CACHE.map(v => {
+        totalStock = roundQty(totalStock + (Number(v.stock_quantity) || 0));
+        const low = v.status === 'active' && Number(v.stock_quantity) <= Number(v.reorder_level);
+        const statusTag = v.status === 'disabled' ?
+            '<span class="tag tag-gray">Disabled</span>' :
+            (low ? '<span class="tag tag-low">Low</span>' : '<span class="tag tag-green">Active</span>');
+        const buyingCell = `<td class="admin-only">${money(v.buying_price)}</td>`;
+        const stockCells = `<td>${v.status === 'disabled' ? fmtQty(v.stock_quantity) : `<div class="stock-cell"><span>${fmtQty(v.stock_quantity)}</span>${stockBarHTML(v.stock_quantity, v.reorder_level)}</div>`}</td><td>${fmtQty(v.reorder_level)}</td>`;
+        return `<tr>
+      <td><strong>${v.variant_name}</strong></td>
+      ${buyingCell}
+      <td>${v.minimum_price ? money(v.minimum_price) : '—'}</td>
+      <td>${money(v.selling_price)}</td>
+      <td>${v.unit}</td>
+      ${stockCells}
+      <td class="no-print">${statusTag}</td>
+      <td class="admin-only no-print">
+        <button type="button" class="icon-action-btn edit-btn" title="Edit" onclick="editVariant(${v.id})"><svg class="ui-icon"><use href="assets/icons.svg#edit"></use></svg></button>
+        <button type="button" class="icon-action-btn delete-btn" title="Delete" onclick="deleteVariant(${v.id})"><svg class="ui-icon"><use href="assets/icons.svg#trash"></use></svg></button>
+      </td>
+    </tr>`;
+    }).join('');
+    if (totalStockEl) totalStockEl.textContent = fmtQty(totalStock);
+    animateStockBars(tbody);
+    applyRoleVisibility();
+}
+
+function resetVariantForm() {
+    const form = document.getElementById('variantForm');
+    if (!form) return;
+    form.reset();
+    document.getElementById('v-id').value = '';
+    document.getElementById('v-unit').value = 'kg';
+    const reorderField = document.getElementById('v-reorder');
+    if (reorderField) reorderField.value = 5;
+    const stockField = document.getElementById('v-stock');
+    if (stockField) stockField.value = 0;
+    document.getElementById('variantFormTitle').textContent = '+ Add Type';
+    document.getElementById('variantSubmitBtn').textContent = 'Add Type';
+    document.getElementById('v-statusField').style.display = 'none';
+    document.getElementById('variantCancelBtn').classList.add('hidden');
+}
+
+function editVariant(id) {
+    const v = TYPES_CACHE.find(x => x.id == id);
+    if (!v) return;
+    document.getElementById('v-id').value = v.id;
+    document.getElementById('v-name').value = v.variant_name;
+    const buyingField = document.getElementById('v-buying');
+    if (buyingField) buyingField.value = v.buying_price;
+    document.getElementById('v-selling').value = v.selling_price;
+    document.getElementById('v-minimum').value = v.minimum_price || '';
+    document.getElementById('v-unit').value = v.unit;
+    const stockField = document.getElementById('v-stock');
+    if (stockField) stockField.value = fmtQty(v.stock_quantity);
+    const reorderField = document.getElementById('v-reorder');
+    if (reorderField) reorderField.value = fmtQty(v.reorder_level);
+    document.getElementById('v-status').value = v.status;
+    document.getElementById('variantFormTitle').textContent = 'Edit Type';
+    document.getElementById('variantSubmitBtn').textContent = 'Update Type';
+    document.getElementById('v-statusField').style.display = 'block';
+    document.getElementById('variantCancelBtn').classList.remove('hidden');
+    document.getElementById('v-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+const variantForm = document.getElementById('variantForm');
+if (variantForm) {
+    variantForm.addEventListener('submit', async(e) => {
+        e.preventDefault();
+        const id = document.getElementById('v-id').value;
+        const buyingField = document.getElementById('v-buying');
+        const stockField = document.getElementById('v-stock');
+        const reorderField = document.getElementById('v-reorder');
+        const payload = {
+            product_id: document.getElementById('v-product-id').value,
+            variant_name: document.getElementById('v-name').value.trim(),
+            buying_price: buyingField ? buyingField.value : '',
+            selling_price: document.getElementById('v-selling').value,
+            minimum_price: document.getElementById('v-minimum').value,
+            unit: document.getElementById('v-unit').value.trim() || 'kg',
+            stock_quantity: stockField ? stockField.value : '',
+            reorder_level: reorderField ? reorderField.value : '',
+        };
+
+        let res;
+        if (id) {
+            payload.id = id;
+            payload.status = document.getElementById('v-status').value;
+            res = await API.put('product_variants.php', payload);
+        } else {
+            res = await API.post('product_variants.php', payload);
+        }
+
+        if (!res.success) { toast(res.message, 'error'); return; }
+        toast(res.message);
+        resetVariantForm();
+        await loadTypesList();
+        loadProducts();
+    });
+}
+
+async function deleteVariant(id) {
+    if (!confirm('Delete this type? This cannot be undone.')) return;
+    const res = await API.del('product_variants.php', { id });
+    if (!res.success) { toast(res.message, 'error'); return; }
+    toast(res.message);
+    await loadTypesList();
+    loadProducts();
+}

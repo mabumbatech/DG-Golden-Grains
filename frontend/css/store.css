@@ -1,0 +1,33 @@
+/* GOLDEN GRAINS - Store Management page (uses the same colours as the rest of the system) */
+.store-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;}
+.store-tab{
+  border:1px solid var(--border,#DCE5D6);background:#fff;color:var(--navy,#062E1A);
+  padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:background .15s,color .15s,border-color .15s;
+}
+.store-tab:hover{border-color:var(--gold,#D4A62A);}
+.store-tab.active{background:var(--navy,#062E1A);color:#fff;border-color:var(--navy,#062E1A);}
+.store-filter .filter-bar{margin-bottom:0;}
+.store-filter .field{margin:0;min-width:140px;}
+.store-filter .field.hidden{display:none;}
+.store-hint{font-size:12px;color:var(--muted,#6B7A6B);margin:8px 0 0;}
+.store-stock-hint{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:#F4F8EF;font-size:12.5px;color:var(--navy,#062E1A);}
+.store-stock-hint strong{font-weight:800;}
+.qty-in{color:var(--green,#1F8A4C);font-weight:800;}
+.qty-out{color:var(--red,#C0392B);font-weight:800;}
+.row-cancelled td{opacity:.55;}
+.store-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.store-search{max-width:320px;margin-bottom:12px;}
+.store-section-title{font-size:12.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--navy,#062E1A);margin:18px 0 10px;font-weight:800;}
+.checkbox-row{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:4px;}
+.checkbox-row input{width:auto;}
+@media print{.store-tabs,.store-filter{display:none !important;}}
+
+/* simpler, calmer layout */
+.store-filter:not(.adv-open) .field.adv{display:none;}
+.store-filter .filter-bar{align-items:flex-end;}
+.store-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.store-toolbar .store-search{margin-bottom:0;}
+.cell-sub{display:block;font-size:12px;color:var(--muted,#6B7A6B);margin-top:2px;font-weight:400;}
+.store-tabs{margin-bottom:12px;}
+.store-section-title{margin:0 0 10px;}

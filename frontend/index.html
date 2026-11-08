@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOLDEN GRAINS — Quality in Every Grain</title>
+    <meta name="description"
+        content="Internal business management system for GOLDEN GRAINS — stock, sales, debts, expenses and reports in one place.">
+
+<script src="js/manifest-init.js"></script>
+
+<script>
+    // Animation flags (set before first paint). Welcome intro plays once per browser session.
+    (function () {
+        var d = document.documentElement;
+        d.classList.add('lp-js');
+        try {
+            if (!sessionStorage.getItem('gg_welcome_seen')) {
+                sessionStorage.setItem('gg_welcome_seen', '1');
+                d.classList.add('lp-intro');
+            }
+        } catch (e) { d.classList.add('lp-intro'); }
+    })();
+</script>
+
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+
+<meta name="theme-color" content="#062E1A">
+
+<link rel="stylesheet" href="css/style.css?v=2">
+
+<style>
+    /* =========================================
+       GOLDEN GRAINS BRAND LOGO
+       ========================================= */
+
+    /* Reduced header bar height */
+    .landing-nav .inner {
+        padding: 8px 0;
+    }
+
+    .landing-nav .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    /* Increased navigation brand logo (kept header height unchanged via negative margin) */
+    .landing-nav .brand img {
+        width: 54px;
+        height: 54px;
+        object-fit: contain;
+        display: block;
+        flex-shrink: 0;
+        margin: 0;
+    }
+
+    .landing-nav .brand .t1 {
+        font-weight: 800;
+        font-size: 19px;
+        line-height: 1;
+    }
+
+    .landing-nav .brand .t2 {
+        font-size: 12px;
+        line-height: 1.2;
+        margin-top: 4px;
+    }
+
+    /* Larger hero logo */
+    .hero-logo {
+        width: clamp(120px, 14vw, 160px);
+        height: auto;
+        object-fit: contain;
+        display: block;
+        margin: 0 auto 15px;
+    }
+
+    /* =========================================
+       HERO: title, tagline and logo with rotating ring
+       ========================================= */
+    .hero .hero-title {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(34px, 7vw, 68px);
+        font-weight: 900;
+        letter-spacing: 2px;
+        line-height: 1.05;
+        margin: 6px 0 4px;
+        background: linear-gradient(180deg, #FFE9A0 0%, #F2C14E 45%, #B9831A 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: #F2C14E;
+        filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .45));
+    }
+
+    .hero .hero-tagline {
+        font-family: "Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive;
+        font-style: italic;
+        font-size: clamp(20px, 3.6vw, 32px);
+        color: #fff;
+        max-width: none;
+        margin: 0 auto 28px;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+    }
+
+    .logo-ring {
+        --ring-size: clamp(190px, 26vw, 250px);
+        position: relative;
+        width: var(--ring-size);
+        height: var(--ring-size);
+        margin: 0 auto 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .logo-ring .ring-logo {
+        width: 76%;
+        height: auto;
+        position: relative;
+        z-index: 2;
+        object-fit: contain;
+    }
+
+    .logo-ring .ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    /* Outer ring made of short dashes, turning clockwise */
+    .logo-ring .ring-dashed {
+        border: 3px dashed #E7A81B;
+        animation: ring-spin 18s linear infinite;
+    }
+
+    /* Inner ring of two bright arcs, turning the other way */
+    .logo-ring .ring-arcs {
+        inset: 9px;
+        border: 3px solid transparent;
+        border-top-color: #FFE9A0;
+        border-bottom-color: #FFE9A0;
+        animation: ring-spin 7s linear infinite reverse;
+    }
+
+    @keyframes ring-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .logo-ring .ring { animation: none; }
+    }
+
+    /* Mobile adjustment */
+    @media (max-width: 600px) {
+        .landing-nav .brand img {
+            width: 44px;
+            height: 44px;
+            margin: 0;
+        }
+
+        .landing-nav .brand {
+            gap: 9px;
+        }
+
+        .landing-nav .brand .t1 {
+            font-size: 15px;
+        }
+
+        .landing-nav .brand .t2 {
+            font-size: 8px;
+        }
+
+        .hero-logo {
+            width: 130px;
+        }
+    }
+
+    /* Landing page: no report card under the hero, so tighten the gap before the features */
+    .hero {
+        padding-bottom: 40px;
+    }
+
+    .hero + .section {
+        padding-top: 36px;
+    }
+</style>
+
+<link rel="stylesheet" href="css/landing-animated.css?v=1">
+
+</head>
+
+<body>
+
+<!-- Scroll progress -->
+<div class="lp-progress" id="lpProgress" aria-hidden="true"></div>
+
+<!-- =========================
+     WELCOME INTRO (once per session, click to skip)
+     ========================= -->
+<div class="lp-splash" id="lpSplash" aria-hidden="true">
+    <span class="lp-splash-orb a"></span>
+    <span class="lp-splash-orb b"></span>
+    <div class="lp-splash-inner">
+        <div class="lp-splash-logo">
+            <span class="r r1"></span>
+            <span class="r r2"></span>
+            <img src="assets/hero-logo.png" alt="">
+        </div>
+        <p class="lp-splash-small">Welcome to</p>
+        <h2 class="lp-splash-name">GOLDEN GRAINS</h2>
+        <span class="lp-splash-line"></span>
+        <p class="lp-splash-tag">Quality in Every Grain</p>
+    </div>
+</div>
+
+<!-- =========================
+     NAVIGATION
+     ========================= -->
+<nav class="landing-nav">
+    <div class="container inner">
+
+        <div class="brand">
+            <img src="assets/logo.png" alt="GOLDEN GRAINS logo">
+
+            <div>
+                <div class="t1">GOLDEN GRAINS</div>
+                <div class="t2">Quality in Every Grain</div>
+            </div>
+        </div>
+
+        <div class="flex gap-8">
+            <button class="btn btn-outline btn-sm js-install-btn hidden"
+                style="color:#fff;border-color:#2F7A52;">
+                Install App
+            </button>
+
+            <a href="login.html">
+                <button class="btn btn-primary btn-sm">Log In</button>
+            </a>
+        </div>
+
+    </div>
+</nav>
+
+
+<!-- =========================
+     HERO
+     ========================= -->
+<header class="hero">
+    <span class="lp-orb o1"></span><span class="lp-orb o2"></span><span class="lp-orb o3"></span>
+    <div class="lp-grains" id="lpGrains" aria-hidden="true"></div>
+
+    <div class="container">
+
+        <p class="lp-welcome" id="lpWelcomeText">Welcome to</p>
+
+        <h1 class="hero-title">DG GOLDEN GRAINS</h1>
+        <p class="hero-tagline">Quality in Every Grain</p>
+
+        <div class="logo-ring">
+            <span class="ring ring-dashed"></span>
+            <span class="ring ring-arcs"></span>
+            <span class="ring ring-pulse"></span>
+            <img src="assets/hero-logo.png" class="ring-logo" alt="GOLDEN GRAINS">
+        </div>
+
+        <p class="lp-line" style="color:white;font-weight:600;letter-spacing:.3px;">Rice · Flour · Maize · Beans · Cooking Oil</p>
+
+        <p class="lp-desc">
+            Stock, Sales, Debts, Expenses, Reports, and Damages;
+            all tracked in one simple app.
+        </p>
+
+        <div class="cta">
+
+            <a href="login.html">
+                <button class="btn btn-primary">
+                    Open the App
+                </button>
+            </a>
+
+            <button class="btn btn-outline js-install-btn hidden"
+                style="color:#fff;border-color:#2F7A52;">
+                Install as App
+            </button>
+
+        </div>
+
+    </div>
+</header>
+
+
+<!-- =========================
+     FEATURES
+     ========================= -->
+<section class="section">
+
+    <div class="container">
+
+        <div class="section-head lp-reveal">
+
+            <div class="eyebrow">
+                Why GOLDEN GRAINS
+            </div>
+
+            <h2>
+                A one-stop system for buying, stocking and selling grains, flour and cooking oil.
+            </h2>
+
+            <p>
+                Built for the GOLDEN GRAINS team to replace the exercise
+                book with real, reliable numbers. Internal use only.
+            </p>
+
+        </div>
+
+
+        <div class="feature-grid">
+
+            <div class="feature lp-reveal">
+
+                <div class="fi">
+                    <svg class="ui-icon">
+                        <use href="assets/icons.svg#package"></use>
+                    </svg>
+                </div>
+
+                <h3>Stock &amp; Products</h3>
+
+                <p>
+                    List every product and size — rice, flour, oil and more —
+                    with price, category and live stock levels.
+                </p>
+
+            </div>
+
+
+            <div class="feature lp-reveal">
+
+                <div class="fi">
+                    <svg class="ui-icon">
+                        <use href="assets/icons.svg#receipt"></use>
+                    </svg>
+                </div>
+
+                <h3>Daily Sales</h3>
+
+                <p>
+                    Record every sale in seconds and watch
+                    stock update automatically.
+                </p>
+
+            </div>
+
+
+            <div class="feature lp-reveal">
+
+                <div class="fi">
+                    <svg class="ui-icon">
+                        <use href="assets/icons.svg#bulb"></use>
+                    </svg>
+                </div>
+
+                <h3>Expenses</h3>
+
+                <p>
+                    Log transport, rent, electricity and other costs so
+                    you always know your real profit.
+                </p>
+
+            </div>
+
+
+            <div class="feature lp-reveal">
+
+                <div class="fi">
+                    <svg class="ui-icon">
+                        <use href="assets/icons.svg#alert-triangle"></use>
+                    </svg>
+                </div>
+
+                <h3>Damages &amp; Waste</h3>
+
+                <p>
+                    Track spoiled or torn stock — like a burst bag
+                    of rice — and its true cost.
+                </p>
+
+            </div>
+
+
+            <div class="feature lp-reveal">
+
+                <div class="fi">
+                    <svg class="ui-icon">
+                        <use href="assets/icons.svg#bar-chart"></use>
+                    </svg>
+                </div>
+
+                <h3>Smart Reports</h3>
+
+                <p>
+                    Generate day, week, month or year reports
+                    with top sells and profit, in one click.
+                </p>
+
+            </div>
+
+
+            <div class="feature lp-reveal">
+
+                <div class="fi">
+                    <svg class="ui-icon">
+                        <use href="assets/icons.svg#users"></use>
+                    </svg>
+                </div>
+
+                <h3>Team Access</h3>
+
+                <p>
+                    Admins manage the shop; workers record
+                    sales and expenses only.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =========================
+     FOOTER
+     ========================= -->
+<footer class="landing-footer">
+
+    <div class="container">
+
+        <span class="b">
+            GOLDEN GRAINS
+        </span>
+
+        — Quality in Every Grain &nbsp;·&nbsp;
+        Business Manager
+        &copy;
+        <span id="year"></span>
+
+    </div>
+
+</footer>
+
+
+<!-- =========================
+     SCRIPTS
+     ========================= -->
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/landing-animated.js"></script>
+
+<script>
+
+    // Current year
+    document.getElementById('year').textContent =
+        new Date().getFullYear();
+
+</script>
+
+</body>
+
+</html>

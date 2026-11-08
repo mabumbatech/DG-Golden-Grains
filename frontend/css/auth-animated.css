@@ -1,0 +1,196 @@
+  /* =========================================================
+     GOLDEN GRAINS — animated login page
+     ========================================================= */
+  .lg-page{
+    --lg-navy:#062E1A; --lg-forest:#0B4A2B; --lg-gold:#E7A81B; --lg-gold-light:#F6C04A; --lg-cream:#FFE9A0;
+    position:relative; min-height:100vh; min-height:100dvh; overflow:hidden; isolation:isolate;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    background:linear-gradient(135deg,#04200F,#0B4A2B,#062E1A,#0E5A33);
+    background-size:300% 300%; animation:lg-bg-shift 18s ease infinite;
+  }
+  @keyframes lg-bg-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+  /* Soft glowing orbs drifting in the background */
+  .lg-orb{position:absolute; border-radius:50%; filter:blur(70px); opacity:.55; z-index:-1; pointer-events:none;}
+  .lg-orb.o1{width:420px;height:420px;background:rgba(231,168,27,.35);top:-120px;left:-100px;animation:lg-drift1 16s ease-in-out infinite;}
+  .lg-orb.o2{width:380px;height:380px;background:rgba(63,155,47,.38);bottom:-140px;right:-80px;animation:lg-drift2 20s ease-in-out infinite;}
+  .lg-orb.o3{width:260px;height:260px;background:rgba(246,192,74,.22);top:45%;left:42%;animation:lg-drift1 24s ease-in-out infinite reverse;}
+  @keyframes lg-drift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,50px) scale(1.15)}}
+  @keyframes lg-drift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,-40px) scale(1.2)}}
+
+  /* Golden grains floating upwards */
+  .lg-grains{position:absolute; inset:0; z-index:-1; pointer-events:none; overflow:hidden;}
+  .lg-grain{
+    position:absolute; bottom:-40px; left:var(--x); width:var(--s); height:calc(var(--s) * 1.9);
+    background:linear-gradient(160deg,#FFE9A0,#E7A81B 60%,#B9831A);
+    border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;
+    opacity:0; filter:blur(var(--b,0px));
+    animation:lg-rise var(--d) linear var(--delay) infinite, lg-sway calc(var(--d) / 3) ease-in-out var(--delay) infinite alternate;
+  }
+  @keyframes lg-rise{0%{transform:translateY(0) rotate(0deg);opacity:0}10%{opacity:.75}90%{opacity:.6}100%{transform:translateY(-115vh) rotate(360deg);opacity:0}}
+  @keyframes lg-sway{from{margin-left:-24px}to{margin-left:24px}}
+
+  /* Layout: brand showcase on the left, login card on the right */
+  .lg-shell{
+    width:100%; max-width:1020px; display:grid; grid-template-columns:1.05fr .95fr; align-items:center; gap:36px;
+  }
+
+  /* ---------- Brand side ---------- */
+  .lg-brand{text-align:center; color:#fff;}
+  .lg-logo{
+    --size:clamp(170px,22vw,230px); position:relative; width:var(--size); height:var(--size);
+    margin:0 auto 22px; display:flex; align-items:center; justify-content:center;
+    animation:lg-pop .9s cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  .lg-logo::before{ /* pulsing glow */
+    content:''; position:absolute; inset:-18%; border-radius:50%;
+    background:radial-gradient(circle,rgba(246,192,74,.45),transparent 65%);
+    animation:lg-pulse 3.4s ease-in-out infinite;
+  }
+  .lg-logo img{width:76%; height:auto; position:relative; z-index:2; filter:drop-shadow(0 8px 18px rgba(0,0,0,.5)); animation:lg-float 5s ease-in-out infinite;}
+  .lg-ring{position:absolute; inset:0; border-radius:50%;}
+  .lg-ring.r1{border:3px dashed var(--lg-gold); animation:lg-spin 18s linear infinite;}
+  .lg-ring.r2{inset:9px; border:3px solid transparent; border-top-color:var(--lg-cream); border-bottom-color:var(--lg-cream); animation:lg-spin 7s linear infinite reverse;}
+  .lg-ring.r3{inset:-12px; border:1px solid rgba(246,192,74,.35); animation:lg-pulse-ring 3.4s ease-in-out infinite;}
+  @keyframes lg-spin{to{transform:rotate(360deg)}}
+  @keyframes lg-pulse{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.08);opacity:1}}
+  @keyframes lg-pulse-ring{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.06);opacity:.2}}
+  @keyframes lg-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes lg-pop{from{opacity:0;transform:scale(.5) rotate(-12deg)}to{opacity:1;transform:none}}
+
+  .lg-title{
+    font-family:Georgia,"Times New Roman",serif; font-weight:900; letter-spacing:2px; line-height:1.05;
+    font-size:clamp(32px,5.2vw,56px); margin:0 0 6px;
+    background:linear-gradient(100deg,#B9831A 0%,#FFE9A0 25%,#F2C14E 50%,#FFE9A0 75%,#B9831A 100%);
+    background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:#F2C14E;
+    animation:lg-rise-in .8s .15s ease both, lg-shine 5s linear infinite;
+    filter:drop-shadow(0 3px 8px rgba(0,0,0,.45));
+  }
+  @keyframes lg-shine{to{background-position:-250% 0}}
+  .lg-tagline{
+    font-family:"Segoe Script","Brush Script MT","Lucida Handwriting",cursive; font-style:italic;
+    font-size:clamp(18px,2.6vw,26px); color:#fff; margin:0 0 22px; text-shadow:0 2px 6px rgba(0,0,0,.4);
+    animation:lg-rise-in .8s .3s ease both;
+  }
+  .lg-chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; animation:lg-rise-in .8s .45s ease both;}
+  .lg-chip{
+    padding:6px 14px; border-radius:30px; font-size:12px; font-weight:600; letter-spacing:.4px; color:#EAF5EC;
+    background:rgba(255,255,255,.08); border:1px solid rgba(246,192,74,.35); backdrop-filter:blur(4px);
+    animation:lg-chip-bob 4s ease-in-out infinite;
+  }
+  .lg-chip:nth-child(2){animation-delay:.5s} .lg-chip:nth-child(3){animation-delay:1s} .lg-chip:nth-child(4){animation-delay:1.5s} .lg-chip:nth-child(5){animation-delay:2s}
+  @keyframes lg-chip-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes lg-rise-in{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+
+  /* ---------- Login card ---------- */
+  .lg-card{
+    position:relative; background:rgba(255,255,255,.97); border-radius:24px; padding:34px 30px 26px;
+    box-shadow:0 30px 70px rgba(0,0,0,.45), 0 0 0 1px rgba(246,192,74,.35);
+    animation:lg-card-in .9s .2s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .lg-card::before{ /* animated gold edge */
+    content:''; position:absolute; left:24px; right:24px; top:0; height:4px; border-radius:0 0 6px 6px;
+    background:linear-gradient(90deg,#B9831A,#FFE9A0,#E7A81B,#3F9B2F,#E7A81B,#FFE9A0,#B9831A); background-size:300% 100%;
+    animation:lg-edge 4s linear infinite;
+  }
+  @keyframes lg-edge{to{background-position:-300% 0}}
+  @keyframes lg-card-in{from{opacity:0;transform:translateX(50px) scale(.96)}to{opacity:1;transform:none}}
+  .lg-card.shake{animation:lg-shake .5s ease}
+  @keyframes lg-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+
+  .lg-card h2{margin:0 0 4px; font-size:24px; font-weight:800; color:var(--lg-navy);}
+  .lg-card .lg-sub{margin:0 0 20px; font-size:13px; color:#667568;}
+  .lg-wave{display:inline-block; transform-origin:70% 70%; animation:lg-wave 2.4s ease-in-out infinite;}
+  @keyframes lg-wave{0%,60%,100%{transform:rotate(0)}10%{transform:rotate(16deg)}20%{transform:rotate(-8deg)}30%{transform:rotate(14deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
+
+  .lg-error{display:none; margin-bottom:14px; padding:10px 12px; border-radius:10px; background:#FDECEC; color:#B42318; font-size:12.8px; font-weight:600; border-left:4px solid #D92D20;}
+  .lg-error.show{display:block; animation:lg-rise-in .3s ease both;}
+
+  .lg-field{position:relative; margin-bottom:16px; animation:lg-rise-in .6s ease both;}
+  .lg-field:nth-of-type(1){animation-delay:.5s} .lg-field:nth-of-type(2){animation-delay:.62s}
+  .lg-field label{display:block; font-size:12px; font-weight:700; color:#4B5C4F; margin-bottom:6px; letter-spacing:.2px;}
+  .lg-input-wrap{position:relative;}
+  .lg-input-wrap .lg-ic{
+    position:absolute; left:14px; top:50%; width:18px; height:18px; transform:translateY(-50%);
+    fill:none; stroke:#8DA796; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:stroke .2s, transform .2s;
+  }
+  .lg-input-wrap input{
+    width:100%; padding:13px 44px 13px 44px; font-size:16px; color:#14261A; background:#F6F9F3;
+    border:2px solid #E1E9DB; border-radius:12px; transition:border-color .2s, box-shadow .2s, background .2s;
+  }
+  .lg-input-wrap input:focus{outline:none; background:#fff; border-color:var(--lg-gold); box-shadow:0 0 0 4px rgba(231,168,27,.22);}
+  .lg-input-wrap input:focus ~ .lg-ic, .lg-input-wrap:focus-within .lg-ic{stroke:var(--lg-gold); transform:translateY(-50%) scale(1.12);}
+
+  .lg-eye{
+    position:absolute; right:8px; top:50%; transform:translateY(-50%); width:34px; height:34px; border:none; background:none;
+    display:flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; color:#8DA796;
+  }
+  .lg-eye:hover{background:#EAF2E4; color:var(--lg-forest);}
+  .lg-eye svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+  .lg-eye .off{display:none} .lg-eye.on .off{display:block} .lg-eye.on .show{display:none}
+
+  .lg-btn{
+    position:relative; overflow:hidden; width:100%; margin-top:6px; padding:14px 18px; border:none; border-radius:12px; cursor:pointer;
+    font-size:15px; font-weight:800; letter-spacing:.4px; color:#062E1A;
+    background:linear-gradient(135deg,#F6C04A,#E7A81B 55%,#D4920F); box-shadow:0 10px 24px rgba(231,168,27,.42);
+    display:flex; align-items:center; justify-content:center; gap:10px; transition:transform .18s, box-shadow .18s;
+    animation:lg-rise-in .6s .75s ease both;
+  }
+  .lg-btn::after{ /* shine sweep */
+    content:''; position:absolute; top:0; left:-80%; width:50%; height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent); transform:skewX(-20deg);
+    animation:lg-sweep 3.2s ease-in-out infinite;
+  }
+  @keyframes lg-sweep{0%,55%{left:-80%}100%{left:140%}}
+  .lg-btn:hover{transform:translateY(-2px); box-shadow:0 14px 30px rgba(231,168,27,.55);}
+  .lg-btn:active{transform:translateY(0) scale(.99);}
+  .lg-btn:disabled{opacity:.85; cursor:wait; transform:none;}
+  .lg-btn .arrow{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; transition:transform .2s;}
+  .lg-btn:hover .arrow{transform:translateX(5px);}
+  .lg-spinner{width:18px; height:18px; border-radius:50%; border:3px solid rgba(6,46,26,.25); border-top-color:#062E1A; animation:lg-spin .7s linear infinite;}
+
+  .lg-links{display:flex; justify-content:space-between; gap:10px; margin-top:18px; font-size:12.5px; animation:lg-rise-in .6s .9s ease both;}
+  .lg-links a{color:#6B7A6E; font-weight:600; transition:color .15s;}
+  .lg-links a:first-child{color:#B9831A;}
+  .lg-links a:hover{color:#062E1A; text-decoration:underline;}
+  .lg-secure{margin:16px 0 0; text-align:center; font-size:11px; color:#8DA796; display:flex; align-items:center; justify-content:center; gap:6px;}
+  .lg-secure svg{width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* ---------- Tablets & phones: stack the layout ---------- */
+  @media (max-width:860px){
+    .lg-page{align-items:flex-start; padding:20px 16px 28px;}
+    .lg-shell{grid-template-columns:1fr; gap:22px; max-width:460px; margin:0 auto;}
+    .lg-logo{--size:130px; margin-bottom:12px;}
+    .lg-title{font-size:clamp(28px,9vw,40px);}
+    .lg-tagline{margin-bottom:0;}
+    .lg-chips{display:none;}
+    .lg-card{padding:28px 22px 22px; animation-name:lg-card-up;}
+    @keyframes lg-card-up{from{opacity:0;transform:translateY(40px) scale(.97)}to{opacity:1;transform:none}}
+  }
+  @media (max-width:380px){
+    .lg-logo{--size:110px;}
+    .lg-card{padding:24px 16px 18px; border-radius:20px;}
+    .lg-card h2{font-size:21px;}
+  }
+  @media (max-height:640px) and (min-width:861px){
+    .lg-page{align-items:flex-start;}
+    .lg-logo{--size:150px;}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .lg-page, .lg-page *, .lg-page *::before, .lg-page *::after{animation:none !important; transition:none !important;}
+    .lg-grain{display:none;}
+  }
+
+/* ---------- Extra pieces used by the reset-password page ---------- */
+.lg-steps{display:flex; align-items:center; justify-content:center; gap:8px; margin:0 0 18px;}
+.lg-step-dot{width:28px; height:6px; border-radius:6px; background:#E1E9DB; transition:background .3s, width .3s;}
+.lg-step-dot.done{background:#3F9B2F;}
+.lg-step-dot.active{background:linear-gradient(90deg,#F6C04A,#E7A81B); width:46px;}
+.lg-chip.active{background:rgba(246,192,74,.22); border-color:#F6C04A; color:#fff;}
+.lg-form-in{animation:lg-rise-in .5s ease both;}
+.lg-hint{margin:6px 0 0; font-size:11.5px; font-weight:600; min-height:15px; color:#8DA796;}
+.lg-hint.ok{color:#2E8B57;} .lg-hint.bad{color:#B42318;}
+.lg-question{display:flex; gap:10px; align-items:flex-start; margin-bottom:16px; padding:12px 13px; border-radius:12px; background:#FBF1D6; border:1px solid #EFE3BE; color:#5A4410; font-size:13px; font-weight:700;}
+.lg-question svg{flex:none; width:18px; height:18px; margin-top:1px; fill:none; stroke:#B9831A; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.lg-btn.lg-btn-solo{animation-delay:.6s;}

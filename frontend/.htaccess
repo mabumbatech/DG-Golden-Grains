@@ -1,0 +1,22 @@
+# Pages, scripts and styles are always re-checked with the server (tiny 304 reply
+# when unchanged), so new updates appear without clearing browsing data.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(html|js|css|json)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+    <FilesMatch "^(service-worker\.js|version\.json)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    </FilesMatch>
+    # Images/icons rarely change: keep them for a week so they load instantly.
+    <FilesMatch "\.(png|jpg|jpeg|webp|ico|svg)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
+<IfModule mod_expires.c>
+    ExpiresActive Off
+</IfModule>
+
+# Compress text files so pages load faster.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml text/plain
+</IfModule>
