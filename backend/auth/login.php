@@ -32,4 +32,4 @@ respond(true, [
     'full_name' => $user['full_name'],
     'username' => $user['username'],
     'role' => $user['role'],
-], 'Welcome back, ' . $user['full_name'] . '.');
+], 'Good to See You Again, ' . $user['full_name'] . '.');

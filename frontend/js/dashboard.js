@@ -66,7 +66,7 @@ function paintDashHero(user) {
   const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   const first = firstNameOf(HERO_USER);
 
-  set('dhGreeting', greetingFor(now) + (first ? ', ' + first : '') + ' · Welcome back');
+  set('dhGreeting', greetingFor(now) + (first ? ', ' + first : '') + ' · Your Dashboard Awaits');
   if (first) set('dhName', first);
   set('dhDow', now.toLocaleDateString('en-GB', { weekday: 'long' }));
   set('dhDay', String(now.getDate()));
