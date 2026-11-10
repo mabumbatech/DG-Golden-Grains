@@ -107,6 +107,115 @@ function ensure_store_schema(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 
+    if (!$has('farm_purchases')) {
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS `farm_purchases` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `farm_name` VARCHAR(150) NULL DEFAULT NULL,
+  `reference_no` VARCHAR(60) NULL DEFAULT NULL,
+  `note` VARCHAR(255) NULL DEFAULT NULL,
+  `allocation_method` ENUM('value','quantity') NOT NULL DEFAULT 'value',
+  `purchase_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `admin_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `transport_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `landed_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `status` ENUM('active','cancelled') NOT NULL DEFAULT 'active',
+  `received_by` INT UNSIGNED NOT NULL,
+  `received_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `cancelled_by` INT UNSIGNED NULL DEFAULT NULL,
+  `cancelled_at` DATETIME NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_fp_received` (`received_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL
+);
+    }
+    if (!$has('farm_purchase_items')) {
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS `farm_purchase_items` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `purchase_id` INT UNSIGNED NOT NULL,
+  `product_id` INT UNSIGNED NOT NULL,
+  `variant_id` INT UNSIGNED NULL DEFAULT NULL,
+  `quantity` DECIMAL(12,3) NOT NULL,
+  `unit_price` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `purchase_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `alloc_admin` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `alloc_transport` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `landed_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `landed_unit_cost` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  PRIMARY KEY (`id`),
+  KEY `idx_fpi_purchase` (`purchase_id`),
+  KEY `idx_fpi_product` (`product_id`),
+  CONSTRAINT `fk_fpi_purchase` FOREIGN KEY (`purchase_id`) REFERENCES `farm_purchases` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_fpi_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL
+);
+    }
+    if (!$has('farm_purchase_expenses')) {
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS `farm_purchase_expenses` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `purchase_id` INT UNSIGNED NOT NULL,
+  `category` ENUM('transport','tax','storage','loading','other') NOT NULL DEFAULT 'other',
+  `description` VARCHAR(150) NULL DEFAULT NULL,
+  `amount` DECIMAL(14,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_fpe_purchase` (`purchase_id`),
+  CONSTRAINT `fk_fpe_purchase` FOREIGN KEY (`purchase_id`) REFERENCES `farm_purchases` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL
+);
+    }
+    if (!$has('stock_costs')) {
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS `stock_costs` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `location` ENUM('store','pos') NOT NULL,
+  `product_id` INT UNSIGNED NOT NULL,
+  `variant_id` INT UNSIGNED NOT NULL DEFAULT 0,
+  `unit_cost` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_stock_cost` (`location`, `product_id`, `variant_id`),
+  CONSTRAINT `fk_stock_costs_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL
+);
+    }
+    if (!$has('stock_transfer_costs')) {
+        $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS `stock_transfer_costs` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `transfer_id` INT UNSIGNED NOT NULL,
+  `activity` VARCHAR(150) NOT NULL,
+  `amount` DECIMAL(14,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_stc_transfer` (`transfer_id`),
+  CONSTRAINT `fk_stc_transfer` FOREIGN KEY (`transfer_id`) REFERENCES `stock_transfers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL
+);
+    }
+
+    // Costing columns on transfers (processing on the way to the shop + cost snapshot)
+    $transferCols = [
+        'output_product_id' => 'INT UNSIGNED NULL DEFAULT NULL',
+        'output_variant_id' => 'INT UNSIGNED NULL DEFAULT NULL',
+        'output_quantity'   => 'DECIMAL(12,3) NULL DEFAULT NULL',
+        'processing_cost'   => 'DECIMAL(14,2) NOT NULL DEFAULT 0.00',
+        'unit_cost'         => 'DECIMAL(14,4) NULL DEFAULT NULL',
+        'input_cost'        => 'DECIMAL(14,2) NULL DEFAULT NULL',
+        'total_cost'        => 'DECIMAL(14,2) NULL DEFAULT NULL',
+        'output_unit_cost'  => 'DECIMAL(14,4) NULL DEFAULT NULL',
+    ];
+    foreach ($transferCols as $col => $def) {
+        if (!$pdo->query("SHOW COLUMNS FROM stock_transfers LIKE '$col'")->fetchColumn()) {
+            $pdo->exec("ALTER TABLE stock_transfers ADD COLUMN `$col` $def");
+        }
+    }
+
     // Damage records: where the damage happened + extra notes. Existing records were taken
     // from the one stock that existed before (the shop), so they become 'pos'.
     if (!$pdo->query("SHOW COLUMNS FROM damages LIKE 'notes'")->fetchColumn()) {
@@ -348,16 +457,28 @@ function movements_union_sql(): string
            -fr.quantity, fr.cancelled_by, CONCAT('RCV-', LPAD(fr.id, 5, '0')), 'Farm receipt cancelled'
       FROM farm_receipts fr WHERE fr.status = 'cancelled' AND fr.cancelled_at IS NOT NULL
     UNION ALL
+    SELECT fp.received_at, 'farm_receipt', 'store', fi.product_id, COALESCE(fi.variant_id, 0), fi.quantity, fp.received_by,
+           CONCAT('PUR-', LPAD(fp.id, 5, '0')), CONCAT_WS(' · ', NULLIF(fp.farm_name, ''), NULLIF(fp.reference_no, ''), NULLIF(fp.note, ''))
+      FROM farm_purchase_items fi JOIN farm_purchases fp ON fp.id = fi.purchase_id
+    UNION ALL
+    SELECT fp.cancelled_at, 'receipt_reversal', 'store', fi.product_id, COALESCE(fi.variant_id, 0), -fi.quantity, fp.cancelled_by,
+           CONCAT('PUR-', LPAD(fp.id, 5, '0')), 'Farm purchase cancelled'
+      FROM farm_purchase_items fi JOIN farm_purchases fp ON fp.id = fi.purchase_id
+     WHERE fp.status = 'cancelled' AND fp.cancelled_at IS NOT NULL
+    UNION ALL
     SELECT t.completed_at, 'transfer_out', t.source, t.product_id, COALESCE(t.variant_id, 0),
            -t.quantity, COALESCE(t.completed_by, t.created_by), CONCAT('TRF-', LPAD(t.id, 5, '0')), $toNote
       FROM stock_transfers t WHERE t.completed_at IS NOT NULL
     UNION ALL
-    SELECT t.completed_at, 'transfer_in', t.destination, t.product_id, COALESCE(t.variant_id, 0),
-           t.quantity, COALESCE(t.completed_by, t.created_by), CONCAT('TRF-', LPAD(t.id, 5, '0')), $fromNote
+    SELECT t.completed_at, 'transfer_in', t.destination, COALESCE(t.output_product_id, t.product_id),
+           IF(t.output_product_id IS NULL, COALESCE(t.variant_id, 0), COALESCE(t.output_variant_id, 0)),
+           COALESCE(t.output_quantity, t.quantity), COALESCE(t.completed_by, t.created_by), CONCAT('TRF-', LPAD(t.id, 5, '0')),
+           IF(t.output_product_id IS NULL, $fromNote, CONCAT('Processed from ', (SELECT p0.name FROM products p0 WHERE p0.id = t.product_id), IFNULL(CONCAT(' · ', NULLIF(t.note, '')), '')))
       FROM stock_transfers t WHERE t.completed_at IS NOT NULL
     UNION ALL
-    SELECT t.cancelled_at, 'transfer_reversal', t.destination, t.product_id, COALESCE(t.variant_id, 0),
-           -t.quantity, t.cancelled_by, CONCAT('TRF-', LPAD(t.id, 5, '0')), 'Completed transfer cancelled (stock returned)'
+    SELECT t.cancelled_at, 'transfer_reversal', t.destination, COALESCE(t.output_product_id, t.product_id),
+           IF(t.output_product_id IS NULL, COALESCE(t.variant_id, 0), COALESCE(t.output_variant_id, 0)),
+           -COALESCE(t.output_quantity, t.quantity), t.cancelled_by, CONCAT('TRF-', LPAD(t.id, 5, '0')), 'Completed transfer cancelled (stock returned)'
       FROM stock_transfers t WHERE t.status = 'cancelled' AND t.completed_at IS NOT NULL AND t.cancelled_at IS NOT NULL
     UNION ALL
     SELECT t.cancelled_at, 'transfer_reversal', t.source, t.product_id, COALESCE(t.variant_id, 0),
@@ -410,15 +531,150 @@ function stock_items_sql(bool $activeOnly): string
     $va = $activeOnly ? " AND pv.status = 'active'" : '';
     return "
     SELECT p.id AS product_id, 0 AS variant_id, p.name AS label, p.name AS product_name, p.unit AS unit,
-           p.stock_quantity AS pos_qty, COALESCE(ss.quantity, 0) AS store_qty, p.reorder_level AS reorder_level, p.status AS status
+           p.stock_quantity AS pos_qty, COALESCE(ss.quantity, 0) AS store_qty, p.reorder_level AS reorder_level, p.status AS status,
+           p.buying_price AS buying_price, p.selling_price AS selling_price
       FROM products p
       LEFT JOIN store_stock ss ON ss.product_id = p.id AND ss.variant_id = 0
      WHERE NOT EXISTS (SELECT 1 FROM product_variants x WHERE x.product_id = p.id) $pa
     UNION ALL
     SELECT p.id, pv.id, CONCAT(p.name, ' — ', pv.variant_name), p.name, pv.unit,
-           pv.stock_quantity, COALESCE(ss.quantity, 0), pv.reorder_level, IF(p.status = 'active' AND pv.status = 'active', 'active', 'disabled')
+           pv.stock_quantity, COALESCE(ss.quantity, 0), pv.reorder_level, IF(p.status = 'active' AND pv.status = 'active', 'active', 'disabled'),
+           pv.buying_price, pv.selling_price
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       LEFT JOIN store_stock ss ON ss.product_id = p.id AND ss.variant_id = pv.id
      WHERE 1=1 $pa $va";
+}
+
+
+/* =========================================================
+   COSTING - the true (landed) cost of stock
+   =========================================================
+   Purchase price + shared expenses (transport, taxes ...) + processing = cost.
+   Each location keeps an average cost per unit (stock_costs). Stock that moves carries its cost
+   with it, so the cost of a product at the shop already includes everything spent on the way.
+   Stock without a recorded cost (older stock) is valued at the product's buying price. */
+
+const SHARED_EXPENSE_CATEGORIES = ['transport', 'tax', 'storage', 'loading', 'other'];
+
+/** Average cost per unit of the stock at a location. 'estimated' = no cost recorded yet, buying price used. */
+function unit_cost_of(PDO $pdo, string $location, int $productId, int $variantKey): array
+{
+    $stmt = $pdo->prepare('SELECT unit_cost FROM stock_costs WHERE location = ? AND product_id = ? AND variant_id = ?');
+    $stmt->execute([$location, $productId, $variantKey]);
+    $c = $stmt->fetchColumn();
+    if ($c !== false) return ['cost' => (float)$c, 'estimated' => false];
+
+    if ($variantKey > 0) {
+        $stmt = $pdo->prepare('SELECT buying_price FROM product_variants WHERE id = ?');
+        $stmt->execute([$variantKey]);
+    } else {
+        $stmt = $pdo->prepare('SELECT buying_price FROM products WHERE id = ?');
+        $stmt->execute([$productId]);
+    }
+    return ['cost' => (float)$stmt->fetchColumn(), 'estimated' => true];
+}
+
+/**
+ * Adds stock at a location AND blends its cost into the location's average cost.
+ * (old qty x old cost + new qty x new cost) / total qty. Call inside a transaction.
+ */
+function add_costed_stock(PDO $pdo, string $location, int $productId, int $variantKey, float $qty, float $unitCost, string $label = ''): void
+{
+    if ($location === 'store') {
+        $pdo->prepare('INSERT IGNORE INTO store_stock (product_id, variant_id, quantity) VALUES (?,?,0)')->execute([$productId, $variantKey]);
+    }
+    $current = stock_at($pdo, $location, $productId, $variantKey, true);
+    $oldCost = unit_cost_of($pdo, $location, $productId, $variantKey)['cost'];
+    $total = $current + $qty;
+    $newCost = $total > 0 ? (($current * $oldCost) + ($qty * $unitCost)) / $total : $unitCost;
+
+    change_stock($pdo, $location, $productId, $variantKey, $qty, $label);
+    $pdo->prepare('INSERT INTO stock_costs (location, product_id, variant_id, unit_cost) VALUES (?,?,?,?)
+                   ON DUPLICATE KEY UPDATE unit_cost = VALUES(unit_cost)')
+        ->execute([$location, $productId, $variantKey, round($newCost, 4)]);
+}
+
+/**
+ * Spreads the shared expenses over the purchased products.
+ * $method: 'value' (by purchase value) or 'quantity'. Transport and the other (administrative) expenses
+ * are allocated separately so each can be reported. The last line takes the rounding remainder.
+ * $lines: list of ['quantity' => .., 'purchase_total' => ..]. Returns a list of ['alloc_admin', 'alloc_transport'].
+ */
+function allocate_shared_costs(array $lines, float $adminTotal, float $transportTotal, string $method): array
+{
+    $weights = [];
+    foreach ($lines as $l) $weights[] = $method === 'quantity' ? (float)$l['quantity'] : (float)$l['purchase_total'];
+    $sum = array_sum($weights);
+    if ($sum <= 0) { // every price is 0 - fall back to quantity
+        $weights = array_map(fn($l) => (float)$l['quantity'], $lines);
+        $sum = array_sum($weights);
+    }
+    $n = count($lines);
+    $remA = round($adminTotal, 2);
+    $remT = round($transportTotal, 2);
+    $out = [];
+    foreach ($lines as $i => $_) {
+        if ($i === $n - 1) {
+            $a = $remA; $t = $remT;
+        } else {
+            $a = round($adminTotal * $weights[$i] / $sum, 2);
+            $t = round($transportTotal * $weights[$i] / $sum, 2);
+            $remA = round($remA - $a, 2);
+            $remT = round($remT - $t, 2);
+        }
+        $out[] = ['alloc_admin' => $a, 'alloc_transport' => $t];
+    }
+    return $out;
+}
+
+/**
+ * Moves the stock of a transfer and carries its cost along. Used when a transfer is completed.
+ * Plain transfer: the stock keeps its unit cost. With processing: cost of the stock used + processing
+ * expenses is divided over the finished quantity (so processing loss raises the cost per unit).
+ * Records the cost snapshot on the transfer. Call inside a transaction; may throw StockShortage.
+ */
+function complete_transfer_stock(PDO $pdo, array $t): void
+{
+    $item = item_from_record($pdo, $t);
+    $outItem = !empty($t['output_product_id'])
+        ? resolve_stock_item($pdo, $t['output_product_id'], $t['output_variant_id'] ?? null)
+        : $item;
+    $qtyIn = to_qty($t['quantity']);
+    $qtyOut = !empty($t['output_quantity']) ? to_qty($t['output_quantity']) : $qtyIn;
+    $pid = (int)$t['product_id'];
+
+    $uc = unit_cost_of($pdo, $t['source'], $pid, $item['key'])['cost'];
+    change_stock($pdo, $t['source'], $pid, $item['key'], -$qtyIn, $item['label']);
+
+    $inputCost = round($qtyIn * $uc, 2);
+    $total = round($inputCost + (float)$t['processing_cost'], 2);
+    $outUnit = $qtyOut > 0 ? round($total / $qtyOut, 4) : 0;
+    add_costed_stock($pdo, $t['destination'], (int)$outItem['product']['id'], $outItem['key'], $qtyOut, $outUnit, $outItem['label']);
+
+    $pdo->prepare('UPDATE stock_transfers SET unit_cost = ?, input_cost = ?, total_cost = ?, output_unit_cost = ? WHERE id = ?')
+        ->execute([round($uc, 4), $inputCost, $total, $outUnit, $t['id']]);
+}
+
+/** Undoes complete_transfer_stock (cancelling a completed transfer). May throw StockShortage. */
+function reverse_transfer_stock(PDO $pdo, array $t): void
+{
+    $item = item_from_record($pdo, $t);
+    $outItem = !empty($t['output_product_id'])
+        ? resolve_stock_item($pdo, $t['output_product_id'], $t['output_variant_id'] ?? null)
+        : $item;
+    $qtyIn = to_qty($t['quantity']);
+    $qtyOut = !empty($t['output_quantity']) ? to_qty($t['output_quantity']) : $qtyIn;
+    $pid = (int)$t['product_id'];
+
+    change_stock($pdo, $t['destination'], (int)$outItem['product']['id'], $outItem['key'], -$qtyOut, $outItem['label']);
+    $uc = $t['unit_cost'] !== null ? (float)$t['unit_cost'] : unit_cost_of($pdo, $t['source'], $pid, $item['key'])['cost'];
+    add_costed_stock($pdo, $t['source'], $pid, $item['key'], $qtyIn, $uc, $item['label']);
+}
+
+/** Removes cost columns for people who may not see money (workers). */
+function strip_cost_fields(array $row, array $fields): array
+{
+    foreach ($fields as $f) unset($row[$f]);
+    return $row;
 }

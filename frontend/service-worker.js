@@ -7,7 +7,7 @@
  * - Images: instant from cache, refreshed in the background.
  * - Backend (API) calls and version.json are never cached.
  */
-const CACHE_NAME = 'golden-grains-v5';
+const CACHE_NAME = 'golden-grains-v6';
 const SHELL_FILES = [
   './index.html',
   './login.html',
