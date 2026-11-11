@@ -101,7 +101,7 @@ if ($method === 'GET') {
             $head = $h->fetch();
             if (!$head) respond(false, null, 'Purchase not found.', 404);
             $head['ref'] = ref_code('PUR', $head['id']);
-            $it = $pdo->prepare("SELECT fi.*, " . ITEM_NAME_SQL . " AS product_name, COALESCE(pv.unit, p.unit) AS unit
+            $it = $pdo->prepare("SELECT fi.*, " . ITEM_NAME_SQL . " AS product_name, COALESCE(fi.unit, pv.unit, p.unit) AS unit
                 FROM farm_purchase_items fi JOIN products p ON p.id = fi.product_id LEFT JOIN product_variants pv ON pv.id = fi.variant_id
                 WHERE fi.purchase_id = ? ORDER BY fi.id");
             $it->execute([$id]);
@@ -204,8 +204,6 @@ if ($method === 'GET') {
             foreach ($rows as &$r) {
                 $r['ref'] = ref_code('TRF', $r['id']);
                 $r['costs'] = $lines[$r['id']] ?? [];
-                $outQty = $r['output_quantity'] !== null ? (float)$r['output_quantity'] : (float)$r['quantity'];
-                $r['loss_qty'] = ($r['output_product_id'] && $r['unit'] === $r['output_unit']) ? round((float)$r['quantity'] - $outQty, 3) : null;
                 if ($r['destination'] === 'pos') foreach ($tot as $k => $_) $tot[$k] += (float)$r[$k];
             }
             unset($r);
@@ -216,12 +214,12 @@ if ($method === 'GET') {
         if ($view === 'cost_history') {
             $union = "
                 SELECT fp.received_at AS ts, 'purchase' AS kind, CONCAT('PUR-', LPAD(fp.id, 5, '0')) AS ref, fi.product_id, COALESCE(fi.variant_id, 0) AS variant_id,
-                       fi.quantity AS qty, fi.landed_unit_cost AS unit_cost
+                       fi.quantity AS qty, fi.landed_unit_cost AS unit_cost, fi.unit AS u
                   FROM farm_purchase_items fi JOIN farm_purchases fp ON fp.id = fi.purchase_id WHERE fp.status = 'active'
                 UNION ALL
                 SELECT t.completed_at, 'processing', CONCAT('TRF-', LPAD(t.id, 5, '0')), COALESCE(t.output_product_id, t.product_id),
                        IF(t.output_product_id IS NULL, COALESCE(t.variant_id, 0), COALESCE(t.output_variant_id, 0)),
-                       COALESCE(t.output_quantity, t.quantity), t.output_unit_cost
+                       COALESCE(t.output_quantity, t.quantity), t.output_unit_cost, NULL
                   FROM stock_transfers t
                  WHERE t.status = 'completed' AND t.output_unit_cost IS NOT NULL AND t.destination = 'pos'
                    AND (t.output_product_id IS NOT NULL OR t.processing_cost > 0)";
@@ -230,7 +228,7 @@ if ($method === 'GET') {
             if (!empty($_GET['product_id'])) { $where .= ' AND ch.product_id = ?'; $params[] = (int)$_GET['product_id']; }
             $stmt = $pdo->prepare("SELECT ch.ts, ch.kind, ch.ref, ch.qty, ch.unit_cost, ch.product_id, ch.variant_id,
                     CASE WHEN ch.variant_id > 0 THEN CONCAT(p.name, ' — ', COALESCE(pv.variant_name, 'removed type')) ELSE p.name END AS product_name,
-                    COALESCE(pv.unit, p.unit) AS unit
+                    COALESCE(ch.u, pv.unit, p.unit) AS unit
                 FROM ($union) ch JOIN products p ON p.id = ch.product_id LEFT JOIN product_variants pv ON pv.id = ch.variant_id
                 $where ORDER BY ch.ts ASC, ch.ref ASC LIMIT 2000");
             $stmt->execute($params);
@@ -351,7 +349,7 @@ if ($method === 'GET') {
 
         $stmt = $pdo->prepare("SELECT mv.ts, mv.mtype, mv.location, mv.product_id, mv.variant_id, mv.qty, mv.ref, mv.note,
                 CASE WHEN mv.variant_id > 0 THEN CONCAT(p.name, ' — ', COALESCE(pv.variant_name, 'removed type')) ELSE p.name END AS product_name,
-                COALESCE(pv.unit, p.unit) AS unit, COALESCE(u.full_name, '—') AS staff
+                COALESCE(CASE WHEN mv.ref LIKE 'PUR-%' THEN (SELECT fi.unit FROM farm_purchase_items fi WHERE fi.purchase_id = CAST(SUBSTRING(mv.ref, 5) AS UNSIGNED) AND fi.product_id = mv.product_id AND COALESCE(fi.variant_id, 0) = mv.variant_id LIMIT 1) END, pv.unit, p.unit) AS unit, COALESCE(u.full_name, '—') AS staff
             FROM (" . movements_union_sql() . ") mv
             JOIN products p ON p.id = mv.product_id
             LEFT JOIN product_variants pv ON pv.id = mv.variant_id
@@ -464,7 +462,11 @@ if ($method === 'POST') {
             if (!isset($ri['unit_price']) || $ri['unit_price'] === '' || (float)$ri['unit_price'] < 0) respond(false, null, 'Enter the purchase price per unit for every product (row ' . ($i + 1) . ').', 422);
             $item = resolve_stock_item($pdo, $ri['product_id'] ?? 0, $ri['variant_id'] ?? null);
             $price = round((float)$ri['unit_price'], 2);
-            $lines[] = ['item' => $item, 'quantity' => $qty, 'unit_price' => $price, 'purchase_total' => round($qty * $price, 2)];
+            // Farm purchases are recorded in KG or Bag only
+            $unit = strtolower(clean($ri['unit'] ?? ''));
+            if ($unit === '') $unit = in_array(strtolower($item['unit']), ['kg', 'bag'], true) ? strtolower($item['unit']) : 'kg';
+            if (!in_array($unit, ['kg', 'bag'], true)) respond(false, null, 'Choose KG or Bag as the unit (row ' . ($i + 1) . ').', 422);
+            $lines[] = ['item' => $item, 'quantity' => $qty, 'unit' => $unit, 'unit_price' => $price, 'purchase_total' => round($qty * $price, 2)];
         }
         if (!$lines) respond(false, null, 'Add at least one product.', 422);
 
@@ -494,12 +496,12 @@ if ($method === 'POST') {
                 ->execute([$farm ?: null, $refNo ?: null, $note ?: null, $method, round($purchaseTotal, 2), round($adminTotal, 2), round($transportTotal, 2), $landedTotal, 'active', $user['id']]);
             $pid0 = (int)$pdo->lastInsertId();
 
-            $insItem = $pdo->prepare('INSERT INTO farm_purchase_items (purchase_id, product_id, variant_id, quantity, unit_price, purchase_total, alloc_admin, alloc_transport, landed_total, landed_unit_cost)
-                                      VALUES (?,?,?,?,?,?,?,?,?,?)');
+            $insItem = $pdo->prepare('INSERT INTO farm_purchase_items (purchase_id, product_id, variant_id, quantity, unit, unit_price, purchase_total, alloc_admin, alloc_transport, landed_total, landed_unit_cost)
+                                      VALUES (?,?,?,?,?,?,?,?,?,?,?)');
             foreach ($lines as $i => $l) {
                 $landed = round($l['purchase_total'] + $alloc[$i]['alloc_admin'] + $alloc[$i]['alloc_transport'], 2);
                 $unitCost = round($landed / $l['quantity'], 4);
-                $insItem->execute([$pid0, $l['item']['product']['id'], $l['item']['variant_id'], $l['quantity'], $l['unit_price'], $l['purchase_total'],
+                $insItem->execute([$pid0, $l['item']['product']['id'], $l['item']['variant_id'], $l['quantity'], $l['unit'], $l['unit_price'], $l['purchase_total'],
                     $alloc[$i]['alloc_admin'], $alloc[$i]['alloc_transport'], $landed, $unitCost]);
                 // the stock goes into the Main Store carrying its true (landed) cost
                 add_costed_stock($pdo, 'store', (int)$l['item']['product']['id'], $l['item']['key'], $l['quantity'], $unitCost, $l['item']['label']);

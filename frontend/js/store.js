@@ -89,7 +89,6 @@ function statusTag(st) {
     document.getElementById('purchaseForm').addEventListener('submit', submitPurchase);
     document.getElementById('pu-method').addEventListener('change', updatePurchasePreview);
     document.getElementById('tr-process').addEventListener('change', syncProcessBox);
-    ['tr-out-qty', 'tr-qty', 'tr-out-item', 'tr-item'].forEach(id => document.getElementById(id).addEventListener('input', updateLoss));
     document.getElementById('transferForm').addEventListener('submit', submitTransfer);
     document.getElementById('adjustForm').addEventListener('submit', submitAdjustment);
     const wanted = (location.hash || '').replace('#', '');
@@ -269,13 +268,11 @@ function drawOverview() {
 }
 
 /* ---- Transfers ---- */
-// "becomes Rice — 65 kg (loss 5 kg)" for stock that was processed on the way to the shop
+// "becomes Rice — 65 kg" for stock that was processed on the way to the shop
 function processedInfo(t) {
     if (!t.output_name) return '';
     const outQty = Number(t.output_quantity);
-    let loss = '';
-    if (t.unit === t.output_unit) loss = ' · loss ' + fmtQty(roundQty(Number(t.quantity) - outQty)) + ' ' + esc(t.unit);
-    return '<span class="cell-sub">→ ' + esc(t.output_name) + ' ' + fmtQty(outQty) + ' ' + esc(t.output_unit || '') + loss + '</span>';
+    return '<span class="cell-sub">→ ' + esc(t.output_name) + ' ' + fmtQty(outQty) + ' ' + esc(t.output_unit || '') + '</span>';
 }
 function renderTransfers(data) {
     setPrintInfo(data.range);
@@ -568,12 +565,18 @@ let PU_EXPS = [];
 const EXP_CATS = [['transport', 'Transportation'], ['tax', 'Taxes & levies'], ['storage', 'Store keeping fees'], ['loading', 'Loading / offloading'], ['other', 'Other administrative']];
 const EXP_LABEL = Object.fromEntries(EXP_CATS);
 
-function unitOf(label) { const i = findItem(label); return i ? i.unit : ''; }
+const PU_UNITS = [['kg', 'KG'], ['bag', 'Bag']];
+// the product's own unit when it is kg or bag, otherwise KG
+function defaultPurchaseUnit(label) {
+    const i = findItem(label);
+    const u = i ? String(i.unit || '').toLowerCase() : '';
+    return u === 'bag' ? 'bag' : 'kg';
+}
 function lineTotalOf(r) { return (Number(r.qty) || 0) * (Number(r.price) || 0); }
 
 function openPurchaseModal() {
     document.getElementById('purchaseForm').reset();
-    PU_ITEMS = [{ label: '', qty: '', price: '' }];
+    PU_ITEMS = [{ label: '', qty: '', price: '', unit: 'kg', unitTouched: false }];
     PU_EXPS = [{ category: 'transport', desc: '', amount: '' }];
     renderPurchaseRows();
     renderExpenseRows();
@@ -586,17 +589,21 @@ function renderPurchaseRows() {
       <div class="pu-row">
         <input type="text" list="itemOptions" value="${esc(r.label)}" placeholder="Type a product..." autocomplete="off" oninput="puItem(${i}, 'label', this.value)" onchange="puItem(${i}, 'label', this.value)">
         <input type="number" min="0.001" step="any" inputmode="decimal" value="${esc(r.qty)}" placeholder="Qty" oninput="puItem(${i}, 'qty', this.value)">
-        <span class="muted" id="pu-un-${i}">${esc(unitOf(r.label))}</span>
+        <select id="pu-un-${i}" onchange="puItem(${i}, 'unit', this.value)">${PU_UNITS.map(u => `<option value="${u[0]}" ${r.unit === u[0] ? 'selected' : ''}>${u[1]}</option>`).join('')}</select>
         <input type="number" min="0" step="any" inputmode="decimal" value="${esc(r.price)}" placeholder="TZS" oninput="puItem(${i}, 'price', this.value)">
         <span class="pu-line" id="pu-lt-${i}">${lineTotalOf(r) ? money(lineTotalOf(r)) : '—'}</span>
         ${PU_ITEMS.length > 1 ? `<button type="button" class="pu-x" title="Remove" onclick="removePurchaseRow(${i})">×</button>` : '<span></span>'}
       </div>`).join('');
 }
-function addPurchaseRow() { PU_ITEMS.push({ label: '', qty: '', price: '' }); renderPurchaseRows(); updatePurchasePreview(); }
+function addPurchaseRow() { PU_ITEMS.push({ label: '', qty: '', price: '', unit: 'kg', unitTouched: false }); renderPurchaseRows(); updatePurchasePreview(); }
 function removePurchaseRow(i) { PU_ITEMS.splice(i, 1); renderPurchaseRows(); updatePurchasePreview(); }
 function puItem(i, field, val) {
     PU_ITEMS[i][field] = val;
-    if (field === 'label') document.getElementById('pu-un-' + i).textContent = unitOf(val);
+    if (field === 'unit') PU_ITEMS[i].unitTouched = true;
+    if (field === 'label' && !PU_ITEMS[i].unitTouched) {
+        PU_ITEMS[i].unit = defaultPurchaseUnit(val);
+        document.getElementById('pu-un-' + i).value = PU_ITEMS[i].unit;
+    }
     document.getElementById('pu-lt-' + i).textContent = lineTotalOf(PU_ITEMS[i]) ? money(lineTotalOf(PU_ITEMS[i])) : '—';
     updatePurchasePreview();
 }
@@ -650,11 +657,11 @@ function updatePurchasePreview() {
         const landed = l.total + shared;
         tp += l.total; ts += shared; tl += landed;
         return `<tr>
-          <td><strong>${esc(l.item.label)}</strong><span class="cell-sub">${fmtQty(l.qty)} ${esc(l.item.unit)} × ${money(l.price)}</span></td>
+          <td><strong>${esc(l.item.label)}</strong><span class="cell-sub">${fmtQty(l.qty)} ${esc(l.r.unit)} × ${money(l.price)}</span></td>
           <td>${money(l.total)}</td>
           <td>${money(shared)}<span class="cell-sub">Transport ${money(alloc[i].transport)} · Other ${money(alloc[i].admin)}</span></td>
           <td><strong>${money(landed)}</strong></td>
-          <td><strong>${moneyD(landed / l.qty)}</strong> <span class="muted">/ ${esc(l.item.unit)}</span></td>
+          <td><strong>${moneyD(landed / l.qty)}</strong> <span class="muted">/ ${esc(l.r.unit)}</span></td>
         </tr>`;
     }).join('');
     box.innerHTML = tableHtml(['Product', 'Purchase cost', 'Shared expenses', 'Total cost', 'Actual cost per unit'], body +
@@ -671,7 +678,7 @@ async function submitPurchase(e) {
         if (!item) { toast('Row ' + (i + 1) + ': choose a product from the list.', 'error'); return; }
         if (!(Number(r.qty) > 0)) { toast('Row ' + (i + 1) + ': enter the quantity.', 'error'); return; }
         if (r.price === '' || Number(r.price) < 0) { toast('Row ' + (i + 1) + ': enter the price per unit.', 'error'); return; }
-        items.push({ product_id: item.product_id, variant_id: Number(item.variant_id) || null, quantity: Number(r.qty), unit_price: Number(r.price) });
+        items.push({ product_id: item.product_id, variant_id: Number(item.variant_id) || null, quantity: Number(r.qty), unit: r.unit, unit_price: Number(r.price) });
     }
     if (!items.length) { toast('Add at least one product.', 'error'); return; }
     const res = await API.post('store.php', {
@@ -739,7 +746,6 @@ function syncProcessBox() {
     if (on && !PROC_COSTS.length) PROC_COSTS = [{ activity: 'Milling (kukoboa)', amount: '' }];
     if (!on) PROC_COSTS = [];
     renderProcCosts();
-    updateLoss();
 }
 function renderProcCosts() {
     document.getElementById('tr-costs').innerHTML = PROC_COSTS.map((c, i) => `
@@ -755,19 +761,6 @@ function removeProcCost(i) { PROC_COSTS.splice(i, 1); renderProcCosts(); }
 function procChange(i, f, v) { PROC_COSTS[i][f] = v; updateProcTotal(); }
 function updateProcTotal() {
     document.getElementById('tr-proc-total').textContent = money(PROC_COSTS.reduce((a, c) => a + (Number(c.amount) > 0 ? Number(c.amount) : 0), 0));
-}
-function updateLoss() {
-    const box = document.getElementById('tr-loss');
-    const inItem = findItem(document.getElementById('tr-item').value);
-    const outItem = findItem(document.getElementById('tr-out-item').value);
-    const qin = Number(document.getElementById('tr-qty').value);
-    const qout = Number(document.getElementById('tr-out-qty').value);
-    if (!processOn() || !inItem || !outItem || !(qin > 0) || !(qout > 0)) { box.style.display = 'none'; return; }
-    box.style.display = '';
-    if (inItem.unit !== outItem.unit) { box.textContent = 'The units differ (' + inItem.unit + ' → ' + outItem.unit + '), so the loss is not calculated.'; return; }
-    const loss = roundQty(qin - qout);
-    if (loss < 0) box.innerHTML = '<span class="qty-out">The finished quantity is more than the quantity used.</span>';
-    else box.innerHTML = 'Processing loss: <strong>' + fmtQty(loss) + '</strong> ' + esc(inItem.unit) + ' (' + (Math.round(loss / qin * 1000) / 10) + '%)';
 }
 
 /* =========================================================
@@ -851,12 +844,11 @@ function renderProcessing(data) {
         const outQty = r.output_quantity !== null ? Number(r.output_quantity) : Number(r.quantity);
         const to = r.output_name || r.product_name;
         const toUnit = r.output_unit || r.unit;
-        const loss = r.loss_qty !== null && r.loss_qty !== undefined ? ' · loss ' + fmtQty(r.loss_qty) + ' ' + esc(r.unit) : '';
         const lines = (r.costs || []).map(c => esc(c.activity) + ' ' + money(c.amount)).join(', ');
         return `<tr>
           <td>${fmtDT(r.completed_at)}<span class="cell-sub">${esc(r.ref)} · ${esc(r.staff || '—')}</span></td>
           <td><strong>${esc(r.product_name)}</strong> <span class="muted">${fmtQty(r.quantity)} ${esc(r.unit)}</span>
-              <span class="cell-sub">→ ${esc(to)} ${fmtQty(outQty)} ${esc(toUnit)}${loss} · ${esc(LOCATION_LABEL[r.source])} → ${esc(LOCATION_LABEL[r.destination])}</span></td>
+              <span class="cell-sub">→ ${esc(to)} ${fmtQty(outQty)} ${esc(toUnit)} · ${esc(LOCATION_LABEL[r.source])} → ${esc(LOCATION_LABEL[r.destination])}</span></td>
           <td><div class="cost-break">Stock <strong>${money(r.input_cost)}</strong> + Processing <strong>${money(r.processing_cost)}</strong> = <strong>${money(r.total_cost)}</strong>${lines ? '<br>' + lines : ''}</div></td>
           <td><strong>${moneyD(r.output_unit_cost)}</strong> <span class="muted">/ ${esc(toUnit)}</span></td>
         </tr>`;
@@ -869,9 +861,9 @@ function renderProcessing(data) {
 
     LAST_EXPORT = {
         name: 'Transfer_Costs',
-        headers: ['Ref', 'Date & Time', 'From Product', 'Qty Used', 'Unit', 'To Product', 'Qty After', 'Unit', 'Loss', 'Stock Cost', 'Processing Cost', 'Total Cost', 'Final Cost/Unit', 'Processing Details'],
+        headers: ['Ref', 'Date & Time', 'From Product', 'Qty Used', 'Unit', 'To Product', 'Qty After', 'Unit', 'Stock Cost', 'Processing Cost', 'Total Cost', 'Final Cost/Unit', 'Processing Details'],
         rows: data.rows.map(r => [r.ref, plainDT(r.completed_at), r.product_name, fmtQty(r.quantity), r.unit, r.output_name || r.product_name,
-            fmtQty(r.output_quantity !== null ? r.output_quantity : r.quantity), r.output_unit || r.unit, r.loss_qty !== null && r.loss_qty !== undefined ? fmtQty(r.loss_qty) : '',
+            fmtQty(r.output_quantity !== null ? r.output_quantity : r.quantity), r.output_unit || r.unit,
             r.input_cost, r.processing_cost, r.total_cost, r.output_unit_cost, (r.costs || []).map(c => c.activity + ' ' + c.amount).join('; ')]),
     };
 }

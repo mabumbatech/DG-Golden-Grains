@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS `farm_purchase_items` (
   `product_id` INT UNSIGNED NOT NULL,
   `variant_id` INT UNSIGNED NULL DEFAULT NULL,
   `quantity` DECIMAL(12,3) NOT NULL,
+  `unit` VARCHAR(20) NULL DEFAULT NULL,
   `unit_price` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `purchase_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `alloc_admin` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
@@ -197,6 +198,11 @@ CREATE TABLE IF NOT EXISTS `stock_transfer_costs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL
 );
+    }
+
+    // Unit (kg / bag) of each product bought from the farm
+    if ($has('farm_purchase_items') && !$pdo->query("SHOW COLUMNS FROM farm_purchase_items LIKE 'unit'")->fetchColumn()) {
+        $pdo->exec("ALTER TABLE farm_purchase_items ADD COLUMN `unit` VARCHAR(20) NULL DEFAULT NULL AFTER `quantity`");
     }
 
     // Costing columns on transfers (processing on the way to the shop + cost snapshot)

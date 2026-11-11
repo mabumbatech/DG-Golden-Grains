@@ -541,6 +541,7 @@ CREATE TABLE IF NOT EXISTS `farm_purchase_items` (
   `product_id` INT UNSIGNED NOT NULL,
   `variant_id` INT UNSIGNED NULL DEFAULT NULL,
   `quantity` DECIMAL(12,3) NOT NULL,
+  `unit` VARCHAR(20) NULL DEFAULT NULL COMMENT 'kg or bag, as bought from the farm',
   `unit_price` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `purchase_total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `alloc_admin` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
